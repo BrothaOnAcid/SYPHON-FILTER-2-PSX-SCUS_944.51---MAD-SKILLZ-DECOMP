@@ -700,4 +700,75 @@ typedef struct {
     s16 unk2;
 } TargetInfo;
 
+/* Guessed WLDEMD.HOG-style resource TOC, filled by func_80026B80 for
+   f_init_801627C0_LoadWldModels. Same convention as .HOG's own data-offset
+   table (see toolz/hog_thing.py): `offsets[i]`/`offsets[i+1]` bound entry
+   i's data - except the very last entry, whose end is derived from the
+   stream's total size instead of reading past the array. */
+typedef struct {
+    s32 unk00;         /* +0x00: unconfirmed */
+    s32 count;         /* +0x04: number of records */
+    s32 recordsOffset; /* +0x08: offset to s32 offsets[count] (boundaries, see above) */
+    s32 namesOffset;   /* +0x0C: offset to a NUL-terminated names blob, in entry order */
+    s32 dataOffset;    /* +0x10: base offset added to `offsets[i]` to reach entry i's data */
+} WldToc;
+
+/* Guessed per-model slot filled by f_init_801627C0_LoadWldModels for each
+   WLDEMD.HOG entry (array g_main_8011F6C8_ModelSlots, stride 0x10). */
+typedef struct {
+    s8 *name;       /* +0x00: entry name pointer (into the WldToc names blob) */
+    u32 sectorInfo; /* +0x04: guess: filled by func_800F8268(sector, &this->sectorInfo) */
+    s8 unk08;       /* +0x08: guess: sector-rounded size (multiple of g_main_8011F98C_ClipSectors) */
+    u8 index;       /* +0x09: this slot's own index */
+    u8 index2;      /* +0x0A: duplicate of +0x09 */
+    u8 _pad0B;
+    u16 len;        /* +0x0C: entry length in bytes minus 1 */
+} WldModelSlot;
+
+/* Guessed resource object loaded via func_80166C08, pointed to by
+   WldModelHandle.res. */
+typedef struct WldTypeDef WldTypeDef;
+typedef struct {
+    u8 _pad00[0xB];
+    u8 flagsB;       /* +0x0B: bit 0x40 set once loaded */
+    u8 _pad0C[0x4];
+    WldTypeDef *typeDef; /* +0x10 */
+} WldRes;
+
+/* Guessed per-model-type definition (WldRes.typeDef). */
+struct WldTypeDef {
+    u8 _pad00[0x20];
+    s32 dataPtr;     /* +0x20: guess: resolved streaming data pointer (high bit masked off) */
+    u32 flags28;     /* +0x28: bits 0x20000/0x100000/0x200000 set by the loader, by model "type" byte */
+};
+
+/* Guessed per-model resource handle slot (array g_main_8011F680_ModelHandles,
+   stride 0x40). res is filled by func_80166C08 (guess: create/load a named
+   resource); subRes is a guessed run-length-indexed array of extra pointers
+   written in the attach loop, exact meaning unconfirmed. */
+typedef struct {
+    WldRes *res;      /* +0x00 */
+    void *subRes[15]; /* +0x04..+0x3C */
+} WldModelHandle;
+
+/* Guessed streaming clip slot (array g_main_8011F968_ClipSlots, stride 0x14). */
+typedef struct {
+    s32 base;        /* +0x00: streaming buffer base address for this clip */
+    s32 unk04;       /* +0x04: attach loop stores WldModelHandle.res here */
+    void *unk08;     /* +0x08: attach loop stores a WldModelSlot* here */
+    s32 modelIndex;  /* +0x0C: -1 = free/unassigned */
+    s32 free;        /* +0x10: 1 = free (guess) */
+} WldClipSlot;
+
+/* Guessed level streaming context, pointed to by global g_main_8011F598_StreamCtx. */
+typedef struct {
+    u8 _pad00[0x8];
+    s32 unk08;       /* +0x08: guess: streaming buffer base */
+    u8 _pad0C[0x24];
+    s32 unk30;       /* +0x30: guess: streaming buffer offset, added to unk08 */
+    u32 attachCount; /* +0x34: number of entries in the attach list below */
+    u8 attachList[1]; /* +0x38: flexible array, length attachCount; each byte
+                          is a WldModelSlot index (0xFE = "self/skip" marker) */
+} WldStreamCtx;
+
 #endif
