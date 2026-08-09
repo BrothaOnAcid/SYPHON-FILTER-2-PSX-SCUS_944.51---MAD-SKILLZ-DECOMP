@@ -47,6 +47,15 @@ typedef struct {
     s16 *angles;    /* +0x24: per-channel 3-s16 angle state (stride 8) */
 } HanCtx;
 
+/* Guessed viewport/rect-like struct (see f_init_8015B920_ApplyLevelParam,
+   f_init_80164A84_ResetEntries); +0x4C/0x4E/0x50 (u16/s16) confirmed. */
+typedef struct {
+    u8 _pad00[0x4C];
+    u16 unk4C;   /* +0x4C */
+    s16 unk4E;   /* +0x4E */
+    s16 unk50;   /* +0x50 */
+} ViewportRect;
+
 /* PSYQ libgte VECTOR: 3 x 32-bit fixed point components */
 typedef struct {
     s32 vx;
@@ -487,13 +496,24 @@ typedef struct {
 } LookupRecord;
 
 /* Guessed nested object at ResourceSlot.sub (+0xC), only touched by the
-   "extraInit" path of f_init_801630EC_ResolveSlot. */
-typedef struct {
+   "extraInit" path of f_init_801630EC_ResolveSlot. Also the object
+   resolved (two hops: self->+0xC->+0x160) by func_8008F844 (main module,
+   undecompiled) and manipulated by f_init_80163680_SetSlotIndex /
+   f_init_801636D0_InsertAtIndex - `unk128`/`unk12C`/`unk130` get written
+   by nearby init.ovl code (caller of InsertAtIndex) from a third source
+   object, `unk134` is a list/slot index, and `next` links instances into
+   a singly-linked list (per-index insert via InsertAtIndex). */
+typedef struct ResourceSub {
     u8 _pad000[0x124];
     s32 unk124;   /* +0x124: cleared */
-    s32 unk128;   /* +0x128: cleared */
-    u8 _pad12C[0x14];
+    s32 unk128;   /* +0x128: cleared in ResolveSlot; also set from a source object elsewhere */
+    s32 unk12C;   /* +0x12C */
+    s32 unk130;   /* +0x130 */
+    s32 unk134;   /* +0x134: list/slot index, set by f_init_80163680_SetSlotIndex */
+    u8 _pad138[0x8];
     s32 unk140;   /* +0x140: set to func_8002D3A8's outValue */
+    u8 _pad144[0x28];
+    struct ResourceSub *next; /* +0x16C: singly-linked list pointer, see f_init_801636D0_InsertAtIndex */
 } ResourceSub;
 
 /* Guessed object passed to f_init_801630EC_ResolveSlot and its two thin
@@ -506,5 +526,38 @@ typedef struct {
     u8 _pad04[0x6];
     ResourceSub *sub; /* +0x0C */
 } ResourceSlot;
+
+/* Guessed 8-entry array at g_main_8012C94C_ResetEntries, stride 8 bytes;
+   only the leading s16 is touched (reset to -1) by
+   f_init_80164A84_ResetEntries. */
+typedef struct {
+    s16 unk0;   /* +0x00: reset to -1 */
+    u8 _pad2[6];
+} ResetEntry;
+
+/* Guessed source object passed to f_init_80165D48_BuildTable: header
+   fields copied verbatim into g_main_80114918.. globals, plus a count
+   (+0x24) and a scale value (+0x20, reused sign-extended*2) fed to
+   func_80100260 (main module, undecompiled). */
+typedef struct {
+    u8 _pad00[0x1C];
+    u16 unk1C;   /* +0x1C */
+    u16 unk1E;   /* +0x1E */
+    u16 unk20;   /* +0x20: also used (sign-extended, x2) as a scale value */
+    u16 unk22;   /* +0x22 */
+    s32 unk24;   /* +0x24: count */
+} TableSrc;
+
+/* Guessed 0x10-byte constant "preset" record (g_init_80158BEC_Preset):
+   4 raw s32 fields, snapshotted twice into a stack pair (before/after
+   values) by f_init_80167638_BuildBlend and passed to func_80167510
+   along with an interpolation ratio - exact meaning (color? transform?)
+   unconfirmed. */
+typedef struct {
+    s32 unk0;   /* +0x00 */
+    s32 unk4;   /* +0x04 */
+    s32 unk8;   /* +0x08 */
+    s32 unkC;   /* +0x0C */
+} Preset4;
 
 #endif

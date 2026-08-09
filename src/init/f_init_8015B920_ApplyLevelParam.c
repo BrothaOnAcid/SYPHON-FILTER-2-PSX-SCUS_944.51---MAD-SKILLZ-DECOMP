@@ -1,12 +1,5 @@
 #include "../../include/types.h"
 
-/* Guessed viewport/rect-like struct; only +0x4E/+0x50 (s16) are confirmed. */
-typedef struct {
-    u8 _pad00[0x4E];
-    s16 unk4E;   /* +0x4E */
-    s16 unk50;   /* +0x50 */
-} ViewportRect;
-
 extern ViewportRect *g_main_8011F6E0_Viewport;
 extern s16 g_main_8011F6DC_LevelParam;
 
