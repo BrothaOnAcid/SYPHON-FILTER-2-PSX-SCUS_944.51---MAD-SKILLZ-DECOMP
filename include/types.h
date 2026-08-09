@@ -70,6 +70,8 @@ typedef struct {
     s32 unk00;  /* guess: BIOS file descriptor / handle id */
     s32 size;   /* guess: raw file size in bytes */
     s32 mode;   /* guess: <0 = exact byte size, >=0 = round size up to a 2048-byte CD sector */
+    s32 unk0C;  /* +0xC: guess: read-cursor copy of unk00, set by f_main_800265A8_PrepareRead */
+    s32 unk10;  /* +0x10: guess: read-cursor copy of size, set by f_main_800265A8_PrepareRead */
 } FileHandle;
 
 /* Guessed from f_main_80026E00_FindResource. Matches knowledge.txt's ".HOG"
@@ -237,7 +239,11 @@ typedef struct {
     u8 _pad00[0x24];
     u16 ammoType;   /* +0x24: ammo type index (low 6 bits used) */
     s16 unk28;      /* +0x28: per-id type (music module: track type) */
-    u8 _pad2A[0x4C - 0x2A];
+    u8 unk2A;       /* +0x2A: mode flag, 0x24 = special-case in f_init_80161E28_UpdateWeaponTrack */
+    u8 _pad2B[0x30 - 0x2B];
+    s32 unk30;      /* +0x30: index into g_main_8011EEFC_ObjArray, -1 = none */
+    u8 _pad34[0x4A - 0x34];
+    s16 unk4A;      /* +0x4A: written by f_init_8015E9C0_SyncTrackParams (truncated s32 result) */
 } WeaponDef;
 
 /* Guessed per-weapon block (AmmoUser +0x1C -> +0x08). */

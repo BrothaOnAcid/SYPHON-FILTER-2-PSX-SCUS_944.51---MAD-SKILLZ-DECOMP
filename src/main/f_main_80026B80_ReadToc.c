@@ -7,7 +7,7 @@ extern s32 f_main_8002662C_CloseFile(FileHandle **handlePtr);
 /* --- libc-style externs (not yet decompiled) --- */
 extern s32 func_80026234(s8 *path, FileHandle **outHandle); /* likely open(path) */
 extern s32 func_80026414(FileHandle *handle, void *buf, s32 size, void *outInfo); /* likely read(handle, buf, size) */
-extern s32 func_800265A8(FileHandle *handle); /* guess: reset/rewind the stream for a reread */
+extern s32 f_main_800265A8_PrepareRead(FileHandle *handle);
 
 /* Opens `path`, reads a header into an 0x800-byte buffer (same size as
    f_main_8002608C_OpenFog's FOG header), and if the header's declared size
@@ -42,7 +42,7 @@ s32 f_main_80026B80_ReadToc(s8 *path, s32 flags, WldToc **outToc) {
         sz = toc->dataOffset;
         f_main_80025B3C_SetContextPtr(toc);
         toc = f_main_80025AD0_AllocDown(sz);
-        if (func_800265A8(h) != 0 || func_80026414(h, toc, sz, info) != 0) {
+        if (f_main_800265A8_PrepareRead(h) != 0 || func_80026414(h, toc, sz, info) != 0) {
             f_main_8002662C_CloseFile(&h);
             return 4;
         }
