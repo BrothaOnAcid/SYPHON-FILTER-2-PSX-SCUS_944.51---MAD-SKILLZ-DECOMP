@@ -1,0 +1,478 @@
+#ifndef TYPES_H
+#define TYPES_H
+
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned long long u64;
+
+typedef signed char s8;
+typedef signed short s16;
+typedef signed int s32;
+typedef signed long long s64;
+
+typedef float f32;
+
+/* PSX pointers are 32-bit; on our (64-bit) host, a direct pointer->u32 cast
+   warns (-Wpointer-to-int-cast). Route through u64 to silence it - this is
+   purely a decompilation-host artifact, harmless on the real 32-bit target. */
+#define PTR_U32(p) ((u32) (u64) (p))
+
+/* Sign-extend a `bits`-wide (1..32) value pulled from a u32 */
+#define SEXT(v, bits) ((s32) ((u32) (v) << (32 - (bits))) >> (32 - (bits)))
+
+/* Fixed-point multiply (12-bit fractional): matches the MIPS multu/mflo+sra
+   sequence - low 32 bits of the product, then arithmetic shift right 12. */
+#define FIX12(a, b) ((s32) ((u32) (a) * (u32) (b)) >> 12)
+
+/* Guessed per-node transform matrix produced by func_8001C264 (3x3 s16
+   rotation at +0x0) and written by f_main_8001C4F4_ReadKeyframes (s32
+   translation at +0x14, +0x2C "rebuild" flag). */
+typedef struct {
+    s16 rot[9];    /* +0x00: 3x3 rotation matrix */
+    s32 tx;        /* +0x14 */
+    s32 ty;        /* +0x18 */
+    s32 tz;        /* +0x1C */
+    u8 _pad20[0xC]; /* +0x20..+0x2B: unknown */
+    u32 flag;      /* +0x2C: guess: matrix-rebuild flag */
+} HmdMatrix;
+
+/* Guessed HAN animation decoder context (f_main_8001C4F4_ReadKeyframes):
+   parallel per-channel arrays - node pointers (+0x18, stride 4) and 3-s16
+   angle accumulators (+0x24, stride 8). Only these two fields are confirmed. */
+typedef struct {
+    u8 _pad00[0x18];
+    void **nodes;   /* +0x18: per-channel node pointers */
+    u8 _pad1C[0x8];
+    s16 *angles;    /* +0x24: per-channel 3-s16 angle state (stride 8) */
+} HanCtx;
+
+/* PSYQ libgte VECTOR: 3 x 32-bit fixed point components */
+typedef struct {
+    s32 vx;
+    s32 vy;
+    s32 vz;
+} VECTOR;
+
+/* Guessed from f_main_800263C4_GetFileSize (only field usage seen so far).
+   Passed around by the file-loading code (func_80026234/80026414/8002662C)
+   as an opaque "handle" - actual size/layout unconfirmed. */
+typedef struct {
+    s32 unk00;  /* guess: BIOS file descriptor / handle id */
+    s32 size;   /* guess: raw file size in bytes */
+    s32 mode;   /* guess: <0 = exact byte size, >=0 = round size up to a 2048-byte CD sector */
+} FileHandle;
+
+/* Guessed from f_main_80026E00_FindResource. Matches knowledge.txt's ".HOG"
+   description (resource archive with a filename TOC): a named-entry lookup
+   table, all fields are byte offsets relative to the HogToc itself. */
+typedef struct {
+    s32 unk00;         /* guess: unused by lookup, maybe a magic/id */
+    s32 count;         /* number of named entries */
+    s32 valuesOffset;  /* offset to an s32[count] array of per-entry values */
+    s32 namesOffset;   /* offset to a blob of concatenated NUL-terminated filenames, in entry order */
+    s32 dataOffset;    /* offset added to array[i] to get entry i's resource data pointer */
+} HogToc;
+
+/* Guessed wrapper: offset 0 holds the actual HogToc pointer (NULL if the
+   archive isn't loaded yet). */
+typedef struct {
+    HogToc *toc;
+} HogArchive;
+
+/* Guessed from f_main_80025D3C_RemoveNode/f_main_80025DE8_FreeList: generic
+   intrusive doubly-linked list node, used pervasively (27+ call sites). */
+typedef struct ListNode {
+    void *owner;             /* guess: payload/owner pointer, untouched by list ops */
+    struct ListNode *prev;   /* +0x4 */
+    struct ListNode *next;   /* +0x8 */
+} ListNode;
+
+/* Guessed: a list head is just a pointer to the first node. */
+typedef struct {
+    ListNode *first;
+} ListHead;
+
+/* Guessed: current-angle block (AnimOwner +0x0C). Angles are s16 at +0x4,
+   +0xA and +0x10 (stride 6). */
+typedef struct {
+    u32 unk00;       /* +0x00 */
+    s16 angX;        /* +0x04 */
+    s16 unk06;       /* +0x06 */
+    u16 unk08;       /* +0x08 */
+    s16 angY;        /* +0x0A */
+    u16 unk0C;       /* +0x0C */
+    u16 unk0E;       /* +0x0E */
+    s16 angZ;        /* +0x10 */
+    u16 unk12;       /* +0x12 */
+} AngBlock;
+
+/* Guessed character/object that owns animation "action" entries (chained on
+   `entries` +0x20). Update is gated on `anim18`/`extra24` being non-null; the
+   wrapper func_8001A740 also skips when bit 3 of `flags08` is set or the +0x10
+   def's +0x28 flags carry the 0x400000/0x2000000 bits. Only the +0x10/+0x18/
+   +0x20/+0x24/+0x8 fields are confirmed (by f_main_8001A7BC_UpdateAnimEntries,
+   func_8001A740 and the 0x80012470/0x800434C0 call sites). */
+typedef struct {
+    u8 _pad00[0x8];
+    u8 flags08;          /* +0x08: bit 3 = skip anim update */
+    u8 _pad09[0x3];
+    AngBlock *unk0C;     /* +0x0C: current-angle block */
+    void *def;           /* +0x10: def block; +0x28 flags gate the wrapper */
+    u8 _pad14[0x4];
+    void *anim18;        /* +0x18: non-null required to update */
+    u8 _pad1C[0x4];
+    ListNode *entries;   /* +0x20: AnimEntry chain */
+    void *extra24;       /* +0x24: non-null required to update */
+} AnimOwner;
+
+/* Guessed animation "action" entry owned by an AnimOwner. HAN data pointer is
+   `anim` (+0x10); `id` (+0x28) selects the update pass in
+   f_main_8001A7BC_UpdateAnimEntries (0 or 0x4000 = first pass, 0x8000 = second).
+   The remaining fields are only read by func_8001A8A8 (per-entry anim reader,
+   see f_main_8001C4F4_ReadKeyframes). */
+typedef struct {
+    u8 _pad00[0x4];
+    s16 unk04;           /* +0x04: param passed to func_80015FF0 */
+    s16 unk06;           /* +0x06 */
+    u32 flags08;         /* +0x08: 0x10000000 = follow +0x0C pointer */
+    void *sub;           /* +0x0C: sub-anim pointer (followed when flags08 bit set) */
+    void *anim;          /* +0x10: HAN anim data pointer */
+    u32 unk14;           /* +0x14: current anim id byte (word-stored) */
+    u8 _pad18[0x4];
+    void (*callback)(void *owner, u32 a1, u32 a2); /* +0x1C: anim-event callback */
+    u32 flags20;         /* +0x20: 0x4000000 / 0x10000000 bits tested */
+    u32 unk24;           /* +0x24: passed to callback as a2 */
+    u32 id;              /* +0x28 */
+    u32 count;           /* +0x2C: loop counter (decremented by func_8001A8A8) */
+} AnimEntry;
+
+/* Guessed actor node in the g_main_8011F160_ActorList linked list (chained
+   through core->next, +0x18C). */
+typedef struct ActorAction ActorAction;
+typedef struct ActorCore ActorCore;
+
+typedef struct ActorNode {
+    u8 _pad00[0x8];
+    AnimOwner *anim;        /* +0x08: animation/action owner */
+    ActorCore *core;        /* +0x0C */
+} ActorNode;
+
+/* Guessed: active action/state of an actor (ActorCore +0x158). */
+typedef struct ActorAction {
+    u8 _pad00[0x18];
+    s32 unk18;      /* +0x18: recoil direction vector (written by f_main_8006C730) */
+    s32 unk1C;      /* +0x1C */
+    s32 unk20;      /* +0x20 */
+    s32 unk24;      /* +0x24 */
+    u8 _pad28[0x10];
+    s32 unk38;      /* +0x38: compared to 6 (reload state?) */
+    u32 flags40;    /* +0x40: bit 0x10 = recoil pending */
+} ActorAction;
+
+/* Guessed per-actor block. `next` (+0x18C) links the actor list; nodes are
+   added by func_80066B54 (also sets +0x104 bit 0x1000) and removed by
+   func_80066BE0. */
+typedef struct ActorCore {
+    u8 _pad00[0xC0];
+    s32 unkC0;              /* +0xC0: recoil rotation, written by f_main_8006C730 */
+    s32 unkC4;              /* +0xC4 */
+    s32 unkC8;              /* +0xC8 */
+    s32 unkCC;              /* +0xCC */
+    u8 _padD0[0x34];
+    u32 flags104;           /* +0x104: 0x1000 = active, 0x800 cleared each frame */
+    u8 _pad108[0x50];
+    ActorAction *act;       /* +0x158: active action */
+    u8 _pad15C[0x30];
+    ActorNode *next;        /* +0x18C */
+} ActorCore;
+
+/* Guessed result struct produced by f_main_80031838_GetSlotState, consumed by
+   func_8002EFF0 (copies words 0..0xC into a weapon slot entry at +0x74..0x80)
+   and by func_80032C38. Only the first 3 words are written by the producer;
+   consumers also read the 4th (unk0C), which the producer leaves untouched. */
+typedef struct {
+    u32 unk00;  /* guess: always zero */
+    u32 val;    /* guess: slot state/damage-like value (0, 0x46, or a table value) */
+    u32 unk08;  /* guess: always zero */
+    u32 unk0C;  /* guess: untouched by producer (uninitialized) */
+} SlotState;
+
+/* Guessed weapon ammo-type definition: 0x24-byte records in
+   g_main_8012F630_AmmoDefs, indexed by ammo type. Only +0x00..+0x08 are
+   confirmed (by f_main_800644AC_HandleAmmo); the individual symbols
+   D_8012F631/633/636/637/638 are labels at base+1/+3/+6/+7/+8. */
+typedef struct {
+    u8 reserve;    /* +0x00: default reserve-ammo refill amount */
+    u8 spend;      /* +0x01: != 0 = firing spends ammo (decrements current) */
+    u8 unk02;      /* +0x02 */
+    u8 flags03;    /* +0x03: low 3 bits tested */
+    u8 unk04;      /* +0x04 */
+    u8 unk05;      /* +0x05 */
+    s8 unk06;      /* +0x06: >= 0 -> spawn a projectile/effect, else skip */
+    s8 unk07;      /* +0x07: -2 = special "unlimited" handling */
+    s16 unk08;     /* +0x08 */
+    u8 unk0A[0x1A]; /* +0x0A..+0x23: unconfirmed */
+} AmmoDef;
+
+/* Ammo slot: maximum at +0x00, current at +0x02. */
+typedef struct {
+    u16 max;       /* +0x00 */
+    u16 current;   /* +0x02 */
+} AmmoSlot;
+
+/* Guessed weapon definition table g_main_8011EEF8_WeaponDefs (0x4C-byte
+   records indexed by weapon id); +0x24 selects the ammo type. +0x28 carries
+   a per-id "type" used by the music sequencer too. */
+typedef struct {
+    u8 _pad00[0x24];
+    u16 ammoType;   /* +0x24: ammo type index (low 6 bits used) */
+    s16 unk28;      /* +0x28: per-id type (music module: track type) */
+    u8 _pad2A[0x4C - 0x2A];
+} WeaponDef;
+
+/* Guessed per-weapon block (AmmoUser +0x1C -> +0x08). */
+typedef struct {
+    u8 _pad00[0x30];
+    u32 unk30;      /* +0x30: reload/anim value (0x3E or 0x55) */
+    u8 unk34;       /* +0x34 */
+    u8 _pad35[0x5];
+    u8 unk3A;       /* +0x3A: reserve-ammo counter (refilled from AmmoDef.reserve) */
+} PerWeapon;
+
+/* Guessed weapon-holder/character object used by f_main_800644AC_HandleAmmo.
+   `core` (+0xC) is the actor core whose +0x158 action's +0x38 drives the
+   reload state; `flags` (+0x10) is a flags bitmap whose low 2 bits of the
+   pointer select sub-indices and whose byte +0xC holds a mode flag; `hud`
+   (+0x20) is the ammo/hud block (ammo slots at +0x44, stride 4). */
+typedef struct {
+    u8 _pad00[0x2];
+    s16 weaponId;   /* +0x02: current weapon id */
+    u8 _pad04[0x8];
+    ActorCore *core; /* +0x0C: actor core (act at +0x158) */
+    u8 *flags;      /* +0x10: flags bitmap */
+    u8 _pad14[0x8];
+    void *unk1C;    /* +0x1C: -> +0x8 = PerWeapon, +0xC = projectile word */
+    void *hud;      /* +0x20: ammo/hud block */
+} AmmoUser;
+
+/* Music-sequencer flags block g_main_8011F374_SongFlags (8011F374).
+   `changed` is set when a new song id is lower than the current one. */
+typedef struct {
+    u8 changed;     /* +0x00 (8011F374) */
+    u8 _pad01;
+    u16 count;      /* +0x02 (8011F376): number of registered tracks */
+} SongFlags;
+
+/* Guessed song/sequence request object passed to f_main_800C2CD4_RegisterTrack.
+   `owner` (+0x08) holds a pointer whose +0x10 is the track object; +0x27 is a
+   flags byte with bit 1 (0x02) set by the sequencer. */
+typedef struct {
+    u8 _pad00[0x2];
+    s16 songId;     /* +0x02 */
+    u8 _pad04[0x4];
+    void *owner;    /* +0x08: -> +0x10 = TrackObj */
+    u8 _pad0C[0x1B];
+    u8 flags27;     /* +0x27: bit 0x02 = registered */
+} SongReq;
+
+/* Guessed registered-track object (SongReq.owner->0x10). */
+typedef struct {
+    u8 _pad00[0x28];
+    u32 flags28;    /* +0x28: 0x80000 = slotted, 0x40000 = registered */
+} TrackObj;
+
+/* Guessed 0x48-byte channel record of the table at 0x801412C0
+   (g_main_801412C0_Rec48, 24 entries, one per SPU voice). */
+typedef void (*ChannelCb)(s32 channel, u32 arg, s32 cmd);
+typedef struct {
+    u32 unk00;      /* +0x00: channel state (1 = active) */
+    u32 unk04;      /* +0x04 */
+    u32 unk08;      /* +0x08: countdown timer (ticked by func_800FD38C) */
+    u8 _pad0C[0x0];
+    s16 unk0C;      /* +0x0C: raw pan-ish value, see f_main_800FBFF0_ReapplyPan */
+    s16 unk0E;      /* +0x0E: raw pan-ish value */
+    s16 unk10;      /* +0x10: threshold value, see f_main_800FD610_MuteIdleChannels */
+    u8 _pad12[0xE];
+    u32 unk20;      /* +0x20: flags, bit 1 = "temporarily muted" (see
+                        f_main_800FD610_MuteIdleChannels /
+                        f_main_800FD6A4_RestoreTaggedChannels) */
+    u8 _pad24[0x4];
+    u32 unk28;      /* +0x28: voice id (0x7F = special) */
+    u8 _pad2C[0x4];
+    u32 unk30;      /* +0x30: logical channel/param index, see f_main_800FBFF0_ReapplyPan */
+    u8 _pad34[0xC];
+    u32 unk40;      /* +0x40 */
+    ChannelCb unk44; /* +0x44: channel callback (cmd 2/3) */
+} Rec48;
+
+/* Guessed node type chained onto AudioSeqState.activeHead (+0x24); only the
+   +0xA4 "next" link is confirmed (by f_main_800FDC04_AppendActiveNode). Not
+   the same object as Rec48 (which is only 0x48 bytes). */
+typedef struct ActiveNode {
+    u8 _pad00[0xA4];
+    struct ActiveNode *next;   /* +0xA4 */
+} ActiveNode;
+
+/* Guessed 0x24-byte schedule node (static pool at 0x80141AA0, 32 entries),
+   ticked by f_main_80104E50_TickSchedule. */
+typedef struct SeqNode SeqNode;
+typedef s32 (*SeqCb)(SeqNode *node, s32 value);
+struct SeqNode {
+    SeqNode *prev;      /* +0x00 */
+    SeqNode *next;      /* +0x04 */
+    u8 _pad08[0x8];
+    s32 value;          /* +0x10 */
+    u16 flags;          /* +0x14: non-zero = linked */
+    u16 period;         /* +0x16: timer reload value */
+    s16 offset;         /* +0x18: value increment per tick */
+    u16 timer;          /* +0x1A */
+    s16 state;          /* +0x1C: 1 = repeating */
+    SeqCb fn;           /* +0x20: per-tick callback */
+};
+
+/* PSYQ audio-sequencer state (g_main_8012F41C_AudioSeq). The blocked-region
+   library code uses its OWN gp base 0x8012EC64 (set at 0x800F8614), so its
+   gp-relative accesses land at 0x8012F4xx (NOT the main gp 0x8011EC64). */
+typedef struct {
+    u32 unk00;          /* +0x00 (8012F41C) */
+    u8 _pad04[0x4];
+    u32 unk08;          /* +0x08 (8012F424): stop-all shortcut flag */
+    void (*cb2)(void);  /* +0x0C (8012F428) */
+    u32 mask;           /* +0x10 (8012F42C): per-channel in-use mask */
+    u32 pending;        /* +0x14 (8012F430): reaper pending bitmask */
+    u32 flagsA;         /* +0x18 (8012F434): channel state bitmask A */
+    u32 flagsB;         /* +0x1C (8012F438): channel state bitmask B */
+    u32 flagsC;         /* +0x20 (8012F43C): channel state bitmask C */
+    void *activeHead;   /* +0x24 (8012F440): singly-linked list head, nodes
+                            chained through their own +0xA4 "next" field
+                            (see f_main_800FDC04_AppendActiveNode) */
+    u8 _pad28[0x10];    /* 0x8012F444..0x8012F453 */
+    s32 activeMode;     /* +0x38 (8012F454): currently active audio mode
+                            (0 = none), see f_main_8010008C_SetAudioMode */
+    u8 _pad3C[0x4];     /* 0x8012F458..0x8012F45B */
+    s16 volL;           /* +0x40 (8012F45C): target volume L */
+    s16 volR;           /* +0x42 (8012F45E): target volume R */
+    u32 volFlag;        /* +0x44 (8012F460): volume-change pending */
+    u32 count;          /* +0x48 (8012F464): poll counter */
+    void (*cb0)(void);  /* +0x4C (8012F468): poll tail callback 0 */
+    void (*cb1)(void);  /* +0x50 (8012F46C): poll tail callback 1 */
+    u32 unk54;          /* +0x54 (8012F470) */
+    u32 busy;           /* +0x58 (8012F474): reentrancy guard */
+    SeqNode *seqHead;   /* +0x5C (8012F478): schedule list head */
+    u32 seqLock;        /* +0x60 (8012F47C): schedule tick guard */
+    u32 seqPause;       /* +0x64 (8012F480): schedule tick guard */
+} AudioSeqState;
+
+/* Guessed song/sequence tree node (0x24 bytes, array-indexed, stride
+   confirmed by index*36 addressing in f_main_800F9F68_PlaySongNode and
+   siblings func_800FA404/func_800FA560). `state` (0-14) selects behavior
+   via a jump table; `childMask` (+0x1C) doubles as "has queued child"
+   (nonzero test) and a per-child-index bitmask (OR'd with 1<<i). pitch/vol
+   accept -1 ("reset to default") / -2 ("leave as-is") sentinels from
+   callers, else are set directly. Field roles beyond that are unconfirmed
+   guesses. */
+typedef struct SongSlot {
+    u32 state;          /* +0x00 */
+    void *handler;      /* +0x04: nonzero = slot in use */
+    u8 _pad08[0x5];
+    u8 childCount;      /* +0x0D */
+    u8 unk0E;           /* +0x0E */
+    u8 _pad0F;
+    u8 unk10;           /* +0x10 */
+    u8 _pad11;
+    u8 pitch;           /* +0x12: override (sentinel -1/-2) */
+    u8 pitchDefault;    /* +0x13: backup for pitch == -1 */
+    u16 vol;            /* +0x14: override (sentinel -1/-2) */
+    u16 volDefault;     /* +0x16: backup for vol == -1 */
+    u8 unk18;           /* +0x18 */
+    u8 _pad19[3];
+    u32 childMask;      /* +0x1C */
+    u8 _pad20[4];
+} SongSlot;
+
+/* Guessed owner of a SongSlot array (`slots`, +0x20); `count` (+0x18)
+   bounds the valid index range. Also lives on the global list at
+   g_main_8012F408_unk (chained via `next`, matched by `tag` - see
+   f_main_800FC6A8_FindById / f_main_800FC9C4_NotifySlotsByTag). */
+typedef struct SongTree {
+    u8 _pad00[0xC];
+    s32 tag;             /* +0x0C: match key for f_main_800FC6A8_FindById */
+    struct SongTree *next; /* +0x14: g_main_8012F408_unk list link */
+    s16 count;          /* +0x18 */
+    u8 _pad1A[4];
+    SongSlot *slots;    /* +0x20 */
+} SongTree;
+
+/* Guessed sound-effect rate-limit rule (g_main_80134E2C_RateLimits[5]),
+   consulted by f_main_8008D21C_PlaySound: if `id` falls in [idMin, idMax]
+   for the matching `category`, and fewer than `cooldown` ticks (against
+   g_main_8011F668_unk) have passed since the last play, the request is
+   dropped. */
+typedef struct {
+    u8 category;    /* +0x00 */
+    u8 idMin;        /* +0x01 */
+    u8 idMax;        /* +0x02 */
+    u8 _pad03;
+    u32 lastTime;    /* +0x04 */
+    u32 cooldown;    /* +0x08 */
+} RateLimitRule;
+
+/* Guessed in-flight positional-sound tracking slot
+   (g_main_80134D4C_SoundQueue[8]); `id`/`subId` identify the sound,
+   `ctx` is the caller's context pointer, `pos` is (at most 3 words) copied
+   from the caller's position argument - the 4th source word is
+   immediately clobbered by `active`, so it's effectively discarded. */
+typedef struct {
+    s32 id;          /* +0x00: -1 = free slot */
+    s32 subId;       /* +0x04 */
+    void *ctx;       /* +0x08 */
+    s32 pos[3];      /* +0x0C */
+    s32 active;      /* +0x18 */
+} SoundQueueEntry;
+
+/* Guessed byte-stream reader (init.ovl); `cursor` (+0x04) is a read
+   pointer, advanced one byte at a time by f_init_801594F4_ReadU16 and
+   sibling functions (e.g. func_80159530). */
+typedef struct {
+    u8 _pad00[0x4];
+    u8 *cursor;    /* +0x04 */
+} ByteStream;
+
+/* MMID (multi-MIDI container) object, confirmed by the "MMID" magic
+   (0x44494D4D) at +0x00 in f_main_800FC814_DestroyMmid. `trackCount`
+   (+0x07) bounds the pointer array at +0x10 (stride 4, each entry another
+   MmidObj/track to recursively destroy). `next` (+0x0C) links it into the
+   library's global active-MMID list (g_main_8012F40C_ActiveMmid; mirrored
+   main-side at g_main_8011F40C_ActiveMmid per user-provided knowledge). */
+typedef struct MmidObj {
+    u32 magic;              /* +0x00: 'MMID' */
+    u8 _pad04[0x3];
+    u8 trackCount;          /* +0x07 */
+    struct MmidObj *next;   /* +0x0C */
+    struct MmidObj *tracks[1]; /* +0x10: trackCount entries */
+} MmidObj;
+
+/* Guessed handle-like object passed to f_main_80010418_GetField80. Callers
+   build the value by OR-ing a raw field with 0x80000000 (turning it into a
+   valid pointer); -1 is treated as "no handle". Only +0x80 is confirmed. */
+typedef struct {
+    u8 _pad00[0x80];
+    s32 field80;    /* +0x80 */
+} HandleObj80;
+
+/* guess: 3-entry table at D_80134D1C, reset by f_main_8008E14C_ResetAudioSlots.
+   Shape (id/subId/type=-1, flag=0xFF, level=0x50) resembles the
+   SoundQueueEntry/RateLimitRule "free slot" reset pattern elsewhere in the
+   audio code. */
+typedef struct {
+    s32 unk0;    /* +0x00: -1 = free */
+    s16 unk4;    /* +0x04: -1 */
+    s16 unk6;    /* +0x06: -1 */
+    s16 unk8;    /* +0x08: -1 */
+    u8 unkC;     /* +0x0C: 0xFF */
+    u8 unkD;     /* +0x0D: 0x50 */
+    u8 _padE[0x2];
+} AudioSlotEntry;
+
+#endif
