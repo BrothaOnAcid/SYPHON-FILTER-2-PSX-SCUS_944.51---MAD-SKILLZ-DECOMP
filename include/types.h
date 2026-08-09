@@ -475,4 +475,36 @@ typedef struct {
     u8 _padE[0x2];
 } AudioSlotEntry;
 
+/* Guessed record returned via func_8002D3A8's outFlag param (init.ovl
+   lookup-by-id helper, see f_init_8015E6E8_CheckEntry). Used in
+   f_init_801630EC_ResolveSlot both as a truthy "found" flag and,
+   directly, as a pointer to this record: `count` gates a
+   "needs >= 2 entries" check, `next` gets self-linked to +0x8 (empty
+   list init pattern). */
+typedef struct {
+    s32 count;    /* +0x00 */
+    void *next;   /* +0x04: set to (u8 *)self + 8 */
+} LookupRecord;
+
+/* Guessed nested object at ResourceSlot.sub (+0xC), only touched by the
+   "extraInit" path of f_init_801630EC_ResolveSlot. */
+typedef struct {
+    u8 _pad000[0x124];
+    s32 unk124;   /* +0x124: cleared */
+    s32 unk128;   /* +0x128: cleared */
+    u8 _pad12C[0x14];
+    s32 unk140;   /* +0x140: set to func_8002D3A8's outValue */
+} ResourceSub;
+
+/* Guessed object passed to f_init_801630EC_ResolveSlot and its two thin
+   wrappers (f_init_801631C0/E4). `id` feeds func_8002D3A8's lookup;
+   `sub` is NULL until resolved (checked first as a "already done"
+   short-circuit). */
+typedef struct {
+    u8 _pad00[0x2];
+    s16 id;         /* +0x02 */
+    u8 _pad04[0x6];
+    ResourceSub *sub; /* +0x0C */
+} ResourceSlot;
+
 #endif
