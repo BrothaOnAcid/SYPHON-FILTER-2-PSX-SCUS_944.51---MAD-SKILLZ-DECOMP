@@ -560,4 +560,144 @@ typedef struct {
     s32 unkC;   /* +0x0C */
 } Preset4;
 
+/* Guessed 0x38-byte slot record, g_main_80121F40_SoundSlots (60 entries,
+   walked by f_main_8001C758_ApplyReverbToActiveSlots). +0x20 is an
+   "active" pointer/flag; +0x28 is passed as the destination arg to
+   func_800205E4. */
+typedef struct {
+    u8 _pad00[0x20];
+    void *active;   /* +0x20 */
+    u8 _pad24[0x4];
+    u8 unk28[0x10]; /* +0x28: passed as func_800205E4's dst arg */
+} SoundSlot;
+
+/* Guessed 0x14-byte per-category record, g_main_80120514_SoundParams.
+   Only the leading word is read/written by the 0x1C82x sound-source code;
+   the rest is unconfirmed padding. */
+typedef struct {
+    s32 val;        /* +0x00 */
+    u8 _pad4[0x10];
+} SoundParamSlot;
+
+typedef struct SoundSrcNode SoundSrcNode;
+typedef struct SoundSrcInfo SoundSrcInfo;
+typedef struct SoundSrcEntry SoundSrcEntry;
+
+/* Guessed per-source "info" block (SoundSrcEntry.info->+0x10). flags28 is
+   a bitmask tested by f_main_8001C828_ProcessSoundSources for category
+   dispatch (0x01000000 active, 0x200000/0x40000/0x20000 sub-flags). */
+struct SoundSrcInfo {
+    u8 _pad00[0x20];
+    void *unk20;    /* +0x20: -> +0x2 = category/type id (compared to 0xF0) */
+    void *unk24;    /* +0x24 */
+    u32 flags28;    /* +0x28 */
+};
+
+/* Guessed active sound-source entry (SoundSrcNode.entry, +0x0). */
+struct SoundSrcEntry {
+    void *core;         /* +0x0 */
+    u8 _pad4[0x4];
+    u8 flags8;           /* +0x8: bit 0x8 = skip */
+    u8 unk9;
+    u8 flagsA;            /* +0xA: bits 0x20, 0x40 */
+    u8 flagsB;             /* +0xB: bit 0x40 */
+    void *unkC;             /* +0xC: name/tag pointer, compared to D_8010C3B4 */
+    u8 _pad10[0x4];
+    SoundSrcInfo *info;      /* +0x10 */
+    u8 _pad14[0x4];
+    void *unk18;              /* +0x18: back-pointer, compared to the listener */
+};
+
+/* Guessed intrusive linked-list node walked by
+   f_main_8001C828_ProcessSoundSources (arg1). `next` is +0x8. */
+struct SoundSrcNode {
+    SoundSrcEntry *entry; /* +0x0 */
+    u8 _pad4[0x4];
+    SoundSrcNode *next;   /* +0x8 */
+};
+
+/* Guessed listener/owner object (f_main_8001C828_ProcessSoundSources'
+   arg0). `core` (+0x0) is the underlying game-object with a short
+   rotation-ish triple at +0x4/+0xA/+0x10 and a s32 world position at
+   +0x14/+0x18/+0x1C (both unconfirmed). */
+typedef struct {
+    u8 _pad00[0x4];
+    s16 rotX;       /* +0x4 */
+    u8 _padA[0x4];
+    s16 rotZ;       /* +0xA */
+    u8 _pad10pad[0x4];
+    s16 rotY;       /* +0x10 */
+    u8 _pad12[0x2];
+    s32 posX;       /* +0x14 */
+    s32 posY;       /* +0x18 */
+    s32 posZ;       /* +0x1C */
+} ListenerCore;
+
+typedef struct {
+    void *core;      /* +0x0: -> ListenerCore */
+    u16 unk4;        /* +0x4: compared to 0x2B (level threshold) */
+    u16 unk6;        /* +0x6: bit 0x10 tested */
+    u8 unk8;         /* +0x8 */
+    u8 unk9;         /* +0x9 */
+    u8 _padA[0x18 - 0xA];
+    s32 unk18;       /* +0x18: zeroed by f_main_8001382C_InitFromCore */
+    s32 snapshot[8]; /* +0x1C..+0x3C: raw copy of core[0x0..0x20) */
+    u8 _pad3C[0x68 - 0x3C];
+    u8 unk68[0x8];   /* +0x68: passed by-ref to func_800F4200 */
+    u8 _pad70[0x9C - 0x70];
+    void *unk9C;     /* +0x9C: -> word tested for 0 */
+    u8 _pad11A0[0x13D - 0xA0];
+    u8 slots[0x1A4 - 0x13D]; /* +0x13D: per-slot bytes, count = g_main_8011F660_SlotCount */
+    void *sub1A4;    /* +0x1A4: -> +0x10 -> +0x28 flags (0x20000) */
+} SoundListener;
+
+/* Guessed target/source object (f_main_8001382C_InitFromCore's arg1). 4
+   s16 fields + 1 s32 field are temporarily negated (mirrored) around the
+   func_8001084C call in that function and then restored - likely a
+   position/rotation record being flipped into a mirrored coordinate
+   space for that call only. */
+typedef struct {
+    u8 _pad0[0x2];
+    s16 unk2;    /* +0x2 */
+    u8 _pad4[0x2];
+    s16 unk6;    /* +0x6 */
+    u8 _pad8[0x2];
+    s16 unkA;    /* +0xA */
+    u8 _padC[0x2];
+    s16 unkE;    /* +0xE */
+    u8 _pad10[0x8];
+    s32 unk18;   /* +0x18 */
+} MirrorObj;
+
+/* Small 2-halfword struct used for the "current 3D pan target" globals
+   (D_801205E8/EC and D_80120614/618 - both share this layout). */
+typedef struct {
+    s16 lo;
+    s16 hi;
+} PanPair;
+
+/* Guessed "flags4 & visibility-bitmap" list node, walked off
+   g_main_8011EC90_unk in f_main_8001C828_ProcessSoundSources. Only +0x4
+   (flags word) and +0x40 (bitmap base, accessed 32-bit-aligned) are used;
+   exact meaning (an OT/visibility bitmask test) is unconfirmed. */
+typedef struct FlagNode FlagNode;
+struct FlagNode {
+    u8 _pad0[4];
+    u32 flags4;   /* +0x4 */
+    u8 _pad8[0x38];
+};
+typedef struct FlagListNode FlagListNode;
+struct FlagListNode {
+    FlagNode *item;      /* +0x0 */
+    u8 _pad4[4];
+    FlagListNode *next;  /* +0x8 */
+};
+
+/* Guessed target/category struct pointed to by SoundSrcInfo.unk20/unk24;
+   +0x2 is a category/type id compared against 0xF0. */
+typedef struct {
+    u8 _pad0[2];
+    s16 unk2;
+} TargetInfo;
+
 #endif
