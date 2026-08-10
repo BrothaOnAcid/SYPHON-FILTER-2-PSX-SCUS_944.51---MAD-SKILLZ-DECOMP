@@ -116,6 +116,10 @@ typedef struct {
     u16 unk0E;       /* +0x0E */
     s16 angZ;        /* +0x10 */
     u16 unk12;       /* +0x12 */
+    s32 unk14;       /* +0x14: guess: position/direction x, read by f_main_80065F90 */
+    s32 unk18;       /* +0x18: guess: position/direction y (negated by f_main_80065F90) */
+    s32 unk1C;       /* +0x1C: guess: position/direction z */
+    void *unk20;     /* +0x20: guess: optional per-frame callback trigger, see f_main_80068DA4 */
 } AngBlock;
 
 /* Guessed character/object that owns animation "action" entries (chained on
@@ -127,7 +131,9 @@ typedef struct {
 typedef struct {
     u8 _pad00[0x8];
     u8 flags08;          /* +0x08: bit 3 = skip anim update */
-    u8 _pad09[0x3];
+    u8 _pad09;
+    u8 flags0A;          /* +0x0A: guess: bit 2 gates f_main_80069054's +0x70/74/78 accumulation */
+    u8 _pad0B;
     AngBlock *unk0C;     /* +0x0C: current-angle block */
     void *def;           /* +0x10: def block; +0x28 flags gate the wrapper */
     u8 _pad14[0x4];
@@ -167,17 +173,26 @@ typedef struct ActorNode {
     u8 _pad00[0x8];
     AnimOwner *anim;        /* +0x08: animation/action owner */
     ActorCore *core;        /* +0x0C */
+    s32 unk10;               /* +0x10: guess: optional per-frame callback trigger, see f_main_800691FC */
 } ActorNode;
 
 /* Guessed: active action/state of an actor (ActorCore +0x158). */
 typedef struct ActorAction {
-    u8 _pad00[0x18];
+    u8 _pad00[0x8];
+    s32 pendX;      /* +0x08: guess: pending direction vector, see f_main_800695CC_SetActorDir */
+    s32 pendY;      /* +0x0C */
+    s32 pendZ;      /* +0x10 */
+    s32 pendW;      /* +0x14: guess: only set on the copy path, see f_main_800695CC_SetActorDir */
     s32 unk18;      /* +0x18: recoil direction vector (written by f_main_8006C730) */
     s32 unk1C;      /* +0x1C */
     s32 unk20;      /* +0x20 */
     s32 unk24;      /* +0x24 */
-    u8 _pad28[0x10];
-    s32 unk38;      /* +0x38: compared to 6 (reload state?) */
+    s32 dirX;       /* +0x28: guess: active direction vector, copied from pendX/Y/Z/W */
+    s32 dirY;       /* +0x2C */
+    s32 dirZ;       /* +0x30 */
+    s32 dirW;       /* +0x34 */
+    s32 unk38;      /* +0x38: compared to 6 (reload state?); also written directly by f_main_800695CC_SetActorDir */
+    s32 unk3C;      /* +0x3C: guess: previous value of unk38 */
     u32 flags40;    /* +0x40: bit 0x10 = recoil pending */
 } ActorAction;
 
@@ -185,16 +200,51 @@ typedef struct ActorAction {
    added by func_80066B54 (also sets +0x104 bit 0x1000) and removed by
    func_80066BE0. */
 typedef struct ActorCore {
-    u8 _pad00[0xC0];
+    s32 rawX;                /* +0x00: guess: raw position/orientation x, read directly by f_main_80065F90 */
+    s32 rawY;                /* +0x04 */
+    s32 rawZ;                /* +0x08 */
+    s32 rawW;                /* +0x0C */
+    u8 _pad10[0x20 - 0x10];
+    s32 unk20;                /* +0x20: guess: bounds-check coordinate, see f_main_80066270_IsInBounds */
+    s32 unk24;                /* +0x24 */
+    s32 unk28;                /* +0x28 */
+    u8 _pad2C[0x50 - 0x2C];
+    s32 posX;               /* +0x50: guess: world position, integrated by f_main_8006852C_IntegratePositions */
+    s32 posY;               /* +0x54 */
+    s32 posZ;                /* +0x58 */
+    u8 _pad5C[0x60 - 0x5C];
+    s32 velX;                /* +0x60: guess: velocity added into posX/Y/Z */
+    s32 velY;                /* +0x64 */
+    s32 velZ;                /* +0x68 */
+    u8 _pad6C[0x70 - 0x6C];
+    s32 unk70;                /* +0x70: guess: accumulator, += g_main_8010DD34_unk, see f_main_80069054 */
+    s32 unk74;                /* +0x74: guess: accumulator, += g_main_8010DD38_unk */
+    s32 unk78;                /* +0x78: guess: accumulator, += g_main_8010DD3C_unk */
+    u8 _pad7C[0xC0 - 0x7C];
     s32 unkC0;              /* +0xC0: recoil rotation, written by f_main_8006C730 */
     s32 unkC4;              /* +0xC4 */
     s32 unkC8;              /* +0xC8 */
     s32 unkCC;              /* +0xCC */
-    u8 _padD0[0x34];
-    u32 flags104;           /* +0x104: 0x1000 = active, 0x800 cleared each frame */
-    u8 _pad108[0x50];
+    s32 pos2X;               /* +0xD0: guess: secondary position (e.g. attach point), see f_main_8006852C_IntegratePositions */
+    s32 pos2Y;               /* +0xD4 */
+    s32 pos2Z;               /* +0xD8 */
+    u8 _padDC[0xE0 - 0xDC];
+    s32 vel2X;                /* +0xE0: guess: velocity added into pos2X/Y/Z */
+    s32 vel2Y;                /* +0xE4 */
+    s32 vel2Z;                /* +0xE8 */
+    u8 _padEC[0x102 - 0xEC];
+    u8 unk102;                /* +0x102: guess: state byte, 5 = "skip" for f_main_80068EB8 */
+    u8 unk103;                /* +0x103: guess: expiry counter threshold, see f_main_8006924C. 0 = disabled */
+    u32 flags104;           /* +0x104: 0x1000 = active, 0x800 cleared each frame; low byte
+                                doubles as an expiry counter vs. unk103, see f_main_8006924C */
+    u8 _pad108[0x50 - 0x4];
+    u32 flags154;           /* +0x154: guess: 0x4000000 gates f_main_80050240 */
     ActorAction *act;       /* +0x158: active action */
-    u8 _pad15C[0x30];
+    s32 unk15C;              /* +0x15C: guess: gate flag, see f_main_80069054 */
+    s32 unk160;              /* +0x160: guess: optional per-frame callback trigger, see f_main_80068E64 */
+    u8 _pad164[0x184 - 0x164];
+    s32 unk184;               /* +0x184: guess: gate flag, see f_main_80069054 */
+    u8 _pad188[0x18C - 0x188];
     ActorNode *next;        /* +0x18C */
 } ActorCore;
 
@@ -776,5 +826,133 @@ typedef struct {
     u8 attachList[1]; /* +0x38: flexible array, length attachCount; each byte
                           is a WldModelSlot index (0xFE = "self/skip" marker) */
 } WldStreamCtx;
+
+/* Guessed streamed-VAB/VH load record, returned via
+   f_main_80026E00_FindResource's out-param and consumed by
+   f_main_800FC13C_BeginVhLoad. +0x08 bit0 = "pointer fields relocated",
+   bit2 = alt-init path; +0x20/+0x24/+0x28 start as offsets and get fixed
+   up to absolute pointers (base-relative, `+= this`) the first time
+   through; +0x2C is a handle produced by the alt-init call; +0x30 is the
+   raw (still HOG-relative) source pointer. */
+typedef struct {
+    u8 _pad00[0x8];
+    u32 flags08;   /* +0x08 */
+    u8 _pad0C[0x20 - 0xC];
+    s32 unk20;     /* +0x20 */
+    s32 unk24;     /* +0x24 */
+    s32 unk28;     /* +0x28 */
+    s32 unk2C;     /* +0x2C */
+    s32 unk30;     /* +0x30 */
+} VhLoadRecord;
+
+/* Guessed generic 16-byte position record (x/z only confirmed, by
+   f_main_80027354_FastDist2D; y/w are read/written by callers but never
+   touched by that function). */
+typedef struct {
+    s32 x;   /* +0x00 */
+    s32 y;   /* +0x04 */
+    s32 z;   /* +0x08 */
+    s32 w;   /* +0x0C */
+} Vec4;
+
+/* Guessed fixed-size slot pool record, base D_8012340C (5 slots, stride
+   0x10), allocated by f_main_8002137C_AllocPoolA. */
+typedef struct {
+    u8 _pad00[0x4];
+    s32 marker; /* +0x04: 0xCACACACA = free/unused, else in-use */
+    u8 _pad08[0x10 - 0x8];
+} PoolARecord;
+
+/* Guessed fixed-size slot pool record, base D_80125FF4 (5 slots, stride
+   0x14), allocated by f_main_80026114_AllocPoolB. */
+typedef struct {
+    u8 _pad00[0x4];
+    s32 marker; /* +0x04: 0xCACACACA = free/unused, else in-use */
+    u8 _pad08[0x14 - 0x8];
+} PoolBRecord;
+
+/* Guessed 0x2C-byte slot record reset by f_main_80056AF8_ResetSlots.
+   +0x04/+0x06 default to 0x190 (400 - guess: timer/range), +0x14..0x16
+   default to 0xFF,0xFF,0xFF (guess: RGB, full white), +0x1C/+0x1E default
+   to 0x1000 (guess: 12-bit fixed-point 1.0 scale). */
+typedef struct {
+    s32 unk00;
+    s16 unk04;
+    s16 unk06;
+    s16 unk08;
+    s16 unk0A;
+    s16 unk0C;
+    s8 unk0E;
+    s8 unk0F;
+    s16 unk10;
+    s16 unk12;
+    u8 unk14;
+    u8 unk15;
+    u8 unk16;
+    u8 _pad17;
+    s16 unk18;
+    s16 unk1A;
+    s16 unk1C;
+    s16 unk1E;
+    s32 unk20;
+    s32 unk24;
+    s32 unk28;
+} ResetSlot;
+
+/* Guessed fixed 4-entry lookup table g_main_80138680_unk; keyA/keyB use
+   -1 as a wildcard, see f_main_800AA658_LookupValue. */
+typedef struct {
+    s32 count;
+    s16 keyA[4];
+    s16 keyB[4];
+    s32 value[4];
+} LookupTable4;
+
+/* Guessed table entry, base g_main_8011F5B8_unk (stride 0x10): +0x4 is a
+   count, +0x8 a pointer-to-pointer array of that many entries, see
+   f_main_80080428_FindIdleSlot. */
+typedef struct {
+    u8 _pad00[0x4];
+    u8 count;    /* +0x4 */
+    u8 _pad05[0x3];
+    void **items; /* +0x8: array of `count` pointers */
+} IdleTable;
+
+/* Guessed record pointed to by IdleTable.items[i]; unk8/9/A are checked
+   for "busy" (>0). */
+typedef struct {
+    u8 _pad00[0x8];
+    s8 unk8;
+    s8 unk9;
+    s8 unkA;
+} IdleRecord;
+
+/* Guessed 0x3C-byte history-buffer record, see f_main_8006AC48_RecordHistory. */
+typedef struct {
+    s32 words[15];
+} HistoryRecord;
+
+/* Guessed 0x48-byte scratch context built by f_main_8006AD54_InvokeWithCtx
+   and handed to a caller-supplied callback. Only +0x04..+0x28 are ever
+   written by that function; the rest is untouched (left for the callback
+   itself). */
+typedef struct {
+    u8 _pad00[0x4];
+    s32 flag04;   /* +0x04: always zeroed */
+    s32 data[8];  /* +0x08..+0x24: copied from `src` when non-NULL */
+    s32 flags28;  /* +0x28: bit 0 = "src was provided"; other bits are
+                     whatever was already on the stack (uninitialized in
+                     the original asm - matched here, not a bug) */
+    u8 _pad2C[0x48 - 0x2C];
+} CallbackCtx;
+
+/* Guessed compacted-table record (stride 0x3C), consumed/produced by
+   f_main_8006C864_FreeActorSlot. unk31 is the record's own slot id,
+   used as a back-pointer when a swap-remove relocates it. */
+typedef struct {
+    u8 _pad00[0x31];
+    u8 unk31; /* +0x31: own slot id */
+    u8 _pad32[0x3C - 0x32];
+} SlotRecord;
 
 #endif
