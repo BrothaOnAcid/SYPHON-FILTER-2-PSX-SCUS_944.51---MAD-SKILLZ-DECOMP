@@ -316,8 +316,10 @@ typedef struct {
     u8 _pad04[0x8];
     ActorCore *core; /* +0x0C: actor core (act at +0x158) */
     u8 *flags;      /* +0x10: flags bitmap */
-    u8 _pad14[0x8];
-    void *unk1C;    /* +0x1C: -> +0x8 = PerWeapon, +0xC = projectile word */
+    u8 _pad14[0x4];
+    void *unk18;    /* +0x18: -> +0x8 = s16 counter, clamped to 0x7FFF when > 0 */
+    void *unk1C;    /* +0x1C: -> +0x8 = PerWeapon, +0xC = projectile word,
+                        +0x4 = flags word, +0x10 = s16 */
     void *hud;      /* +0x20: ammo/hud block */
 } AmmoUser;
 
@@ -785,7 +787,9 @@ typedef struct {
    WldModelHandle.res. */
 typedef struct WldTypeDef WldTypeDef;
 typedef struct {
-    u8 _pad00[0xB];
+    u8 _pad00[0x8];
+    u8 flags8;       /* +0x08: bit 0x08 toggled by f_main_800AFF0C_SetModelFlag8 */
+    u8 _pad09[0x2];
     u8 flagsB;       /* +0x0B: bit 0x40 set once loaded */
     u8 _pad0C[0x4];
     WldTypeDef *typeDef; /* +0x10 */
@@ -947,10 +951,13 @@ typedef struct {
 } CallbackCtx;
 
 /* Guessed compacted-table record (stride 0x3C), consumed/produced by
-   f_main_8006C864_FreeActorSlot. unk31 is the record's own slot id,
-   used as a back-pointer when a swap-remove relocates it. */
+   f_main_8006C824_AllocActorSlot/f_main_8006C864_FreeActorSlot. unk30 is
+   the record's own compacted-table index (written into
+   g_main_8011F7F0_SlotMap[id] on alloc); unk31 is the record's own slot
+   id, used as a back-pointer when a swap-remove relocates it. */
 typedef struct {
-    u8 _pad00[0x31];
+    u8 _pad00[0x30];
+    u8 unk30; /* +0x30: own compacted-table index */
     u8 unk31; /* +0x31: own slot id */
     u8 _pad32[0x3C - 0x32];
 } SlotRecord;

@@ -1,12 +1,12 @@
 #include "../../include/types.h"
 
-extern void *func_800A5718(void);
+extern void *f_main_800A5718_LookupHandle(void);
 
 /* Resets the "current" object's entry count (+0x4) to 0 and poisons the
    +0x4/+0x5/+0x6 bytes of each of its +0xC (u16 count) elements (stride
    0x10, base at +0x0) to 0xFF. No-op if there's no current object. */
 void f_main_800A730C_ResetCurrentSlots(void) {
-    void *obj = func_800A5718();
+    void *obj = f_main_800A5718_LookupHandle();
     u16 count;
     s32 i;
     u8 *base;
