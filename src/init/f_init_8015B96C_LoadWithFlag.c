@@ -12,7 +12,7 @@ extern u8 D_8014B950[];                /* not yet decompiled: string literal */
 extern void func_800F045C(void *dst, u8 *fmt, s32 a, s32 b); /* not yet decompiled */
 extern void func_801591A0(void);                             /* not yet decompiled */
 void f_init_8015B794_RunTokenScriptInline(void);
-extern void func_8015B920(void);                               /* not yet decompiled */
+extern void f_init_8015B920_NotifyLevelDelay(void);
 extern u32 f_main_8002B0D0_LoadFileAlloc(s8 *name, void **outPtr, s32 size);
 extern void func_8002B4C4(void *a, u8 *fmt, s32 c);            /* not yet decompiled */
 extern void func_80057DF8(s32 ticks);                           /* not yet decompiled: delay/wait */
@@ -23,7 +23,8 @@ extern void func_80057DF8(s32 ticks);                           /* not yet decom
    D_8011F6E0 at D_8012B114, and - only if the low byte of `flag` is set -
    runs f_main_8002B0D0_LoadFileAlloc against it with a 0x1000 size. Finishes by calling
    f_init_8015B794_RunTokenScriptInline, another func_800F045C,
-   func_8002B4C4, func_8015B920 and a 0x3C-tick delay via func_80057DF8. */
+   func_8002B4C4, f_init_8015B920_NotifyLevelDelay and a 0x3C-tick delay via
+   func_80057DF8. */
 void f_init_8015B96C_LoadWithFlag(s32 flag) {
     u8 sp10[0x40];
     u8 sp30[0x18];
@@ -37,6 +38,6 @@ void f_init_8015B96C_LoadWithFlag(s32 flag) {
     f_init_8015B794_RunTokenScriptInline();
     func_800F045C(sp30, D_80158AE0, D_80168770[D_8012B02C], D_8010C874[D_8012B02C]);
     func_8002B4C4(sp30, D_8014B950, 1);
-    func_8015B920();
+    f_init_8015B920_NotifyLevelDelay();
     func_80057DF8(0x3C);
 }

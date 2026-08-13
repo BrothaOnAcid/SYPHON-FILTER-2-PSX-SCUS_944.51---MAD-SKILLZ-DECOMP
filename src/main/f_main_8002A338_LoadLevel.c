@@ -23,7 +23,7 @@ extern void func_80025B48(void *ptr);
 extern void f_init_80168298_InitSoundSystem(void *path, s32 a1, void *outSize, s32 a3);
 extern void *func_80025B54(void);
 extern void f_main_8002BC44_PushState(s32 flag);
-extern void func_8002BDC0(s32 flag);
+extern void f_main_8002BDC0_SetSoundState(u8 state);
 
 /* Not yet decompiled, but this is a direct call into the INIT.OVL overlay
    just loaded by f_main_8002B4C4_LoadFile below - confirms
@@ -32,7 +32,7 @@ extern void f_init_8015CF84_ClearOverlayTail(u32 *ptr);
 
 /* Loads level `level`'s FOG archive and the INIT.OVL overlay, then a
    per-level SLF.RFF resource. `restart`/`fromSave` (guessed) select the
-   final f_main_8002BC44_PushState(0xC) vs func_8002BDC0(4) call.
+   final f_main_8002BC44_PushState(0xC) vs f_main_8002BDC0_SetSoundState(4) call.
 
    `level` is clamped to [0, 0x2A]; if out of range, level is reset to 0.
    g_main_8011F624_Flag is set based on whether the (possibly clamped)
@@ -74,7 +74,7 @@ void f_main_8002A338_LoadLevel(s32 level, s32 restart, s32 fromSave) {
     if (fromSave == 0) {
         f_main_8002BC44_PushState(0xC);
     } else {
-        func_8002BDC0(4);
+        f_main_8002BDC0_SetSoundState(4);
     }
     g_main_8011F61C_unk = restart < 1;
 }

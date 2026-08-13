@@ -6,7 +6,7 @@ extern u32 D_8010C1F4[4]; /* not yet decompiled: default WldTypeDef bbox block, 
 extern void *func_80025AD0(s32 size);                                        /* not yet decompiled */
 extern WldTypeDef *f_init_80166568_InternTypeDef(s32 key, WldRes *res, s32 flags);
 extern void func_80024094(void *ctx, s32 arg1);                              /* not yet decompiled */
-extern void func_801669CC(WldResEx *req, s32 key, s32 arg1, s32 weight);      /* not yet decompiled */
+extern void f_init_801669CC_AttachChild(InitOwner *self, InitChild *child, s32 tag, s32 skipLink);
 
 /* Allocates a WldResEx (0x2C bytes, an extended WldRes) and its EnvBlock
    (0x14 bytes), interns the WldTypeDef via f_init_80166568_InternTypeDef
@@ -57,7 +57,11 @@ void f_init_80166A70_CreateWldResEx(s32 key, s32 arg1, s32 arg2, u8 flag, WldRes
     env->unk10 = 0;
     req->unk1C = env;
 
-    func_801669CC(req, key, arg1, weight);
+    /* `key` is passed straight through as the "child" pointer, matching the
+       original asm's register usage - it's only actually dereferenced
+       (child->unk10) when `weight` != 0, so this is only unsafe if a
+       caller ever passes a nonzero weight here (unconfirmed). */
+    f_init_801669CC_AttachChild((InitOwner *) req, (InitChild *) (u64) key, arg1, weight);
 
     *out = req;
 }

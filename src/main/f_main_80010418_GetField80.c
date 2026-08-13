@@ -4,5 +4,5 @@
 s32 f_main_80010418_GetField80(HandleObj80 *obj) {
     if (PTR_U32(obj) == 0xFFFFFFFF)
         return 0;
-    return obj->field80;
+    return (s32) PTR_U32(obj->slots80);
 }

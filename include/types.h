@@ -56,12 +56,51 @@ typedef struct {
     s16 unk50;   /* +0x50 */
 } ViewportRect;
 
+/* Guessed sub-object hung off an InitOwner's +0x10 (its "core"), see
+   f_init_801669CC_AttachChild. */
+typedef struct {
+    u8 _pad00[0x20];
+    void *owner;    /* +0x20 */
+    u8 _pad24[0x4];
+    u32 flags28;    /* +0x28 */
+    s32 unk2C;      /* +0x2C */
+} InitCore;
+
+/* Guessed owner object; +0x10 is the InitCore above, +0x18/+0x20/+0x24 are
+   cleared by f_init_801669CC_AttachChild. */
+typedef struct {
+    u8 _pad00[0x10];
+    InitCore *core; /* +0x10 */
+    u8 _pad14[0x4];
+    s32 unk18;      /* +0x18 */
+    u8 _pad1C[0x4];
+    s32 unk20;      /* +0x20 */
+    s32 unk24;      /* +0x24 */
+} InitOwner;
+
+/* Guessed child object; only +0x10 is confirmed (an "already linked" flag
+   checked by f_init_801669CC_AttachChild). */
+typedef struct {
+    u8 _pad00[0x10];
+    s32 unk10;      /* +0x10 */
+} InitChild;
+
 /* PSYQ libgte VECTOR: 3 x 32-bit fixed point components */
 typedef struct {
     s32 vx;
     s32 vy;
     s32 vz;
 } VECTOR;
+
+/* PSYQ libgte MATRIX: 3x3 s16 rotation (row-major), 2-byte pad, 3x s32
+   translation. Confirmed by f_init_80166728_LinkNpcSpawnRecords, which
+   builds one on the stack from a record's row-major rotation block by
+   transposing it into `m`. */
+typedef struct {
+    s16 m[3][3]; /* +0x00 */
+    s16 pad;     /* +0x12 */
+    s32 t[3];    /* +0x14 */
+} MATRIX;
 
 /* Guessed from f_main_800263C4_GetFileSize (only field usage seen so far).
    Passed around by the file-loading code (func_80026234/80026414/8002662C)
@@ -117,6 +156,20 @@ typedef struct {
     ListNode *first;
 } ListHead;
 
+/* guess: generic tree/chain node addressed via the polymorphic +0x20 field
+   many unrelated structs expose (see AngBlock.unk20 below). `next` chains
+   siblings, `left`/`right` are child subtrees, `flag` is read/cleared by
+   removal. Confirmed by f_main_80010F30_RemoveNode and
+   f_main_80011084_RemoveTailNode; the +0x00..+0x1F payload is opaque
+   (copied out verbatim on removal, never itself dereferenced there). */
+typedef struct TreeNode20 {
+    u8 _pad00[0x20];             /* +0x00: opaque payload */
+    struct TreeNode20 *next;     /* +0x20 */
+    struct TreeNode20 *left;     /* +0x24 */
+    struct TreeNode20 *right;    /* +0x28 */
+    s32 flag;                    /* +0x2C */
+} TreeNode20;
+
 /* Guessed: current-angle block (AnimOwner +0x0C). Angles are s16 at +0x4,
    +0xA and +0x10 (stride 6). */
 typedef struct {
@@ -132,7 +185,7 @@ typedef struct {
     s32 unk14;       /* +0x14: guess: position/direction x, read by f_main_80065F90 */
     s32 unk18;       /* +0x18: guess: position/direction y (negated by f_main_80065F90) */
     s32 unk1C;       /* +0x1C: guess: position/direction z */
-    void *unk20;     /* +0x20: guess: optional per-frame callback trigger, see f_main_80068DA4 */
+    TreeNode20 *unk20; /* +0x20: guess: root of a TreeNode20 chain, see f_main_80068DA4 */
 } AngBlock;
 
 /* Guessed character/object that owns animation "action" entries (chained on
@@ -179,13 +232,13 @@ typedef struct {
 
 /* Guessed actor node in the g_main_8011F160_ActorList linked list (chained
    through core->next, +0x18C). */
-typedef struct ActorAction ActorAction;
-typedef struct ActorCore ActorCore;
+struct ActorAction;
+struct ActorCore;
 
 typedef struct ActorNode {
     u8 _pad00[0x8];
     AnimOwner *anim;        /* +0x08: animation/action owner */
-    ActorCore *core;        /* +0x0C */
+    struct ActorCore *core; /* +0x0C */
     s32 unk10;               /* +0x10: guess: optional per-frame callback trigger, see f_main_800691FC */
 } ActorNode;
 
@@ -397,12 +450,82 @@ typedef struct {
     u8 _pad04[0x8];
     ActorCore *core; /* +0x0C: actor core (act at +0x158) */
     u8 *flags;      /* +0x10: flags bitmap */
-    u8 _pad14[0x4];
+    s32 unk14;      /* +0x14: guess: reset to -1 by f_init_80163A10_ResetPlayers (Player-only) */
     void *unk18;    /* +0x18: -> +0x8 = s16 counter, clamped to 0x7FFF when > 0 */
     void *unk1C;    /* +0x1C: -> +0x8 = PerWeapon, +0xC = projectile word,
                         +0x4 = flags word, +0x10 = s16 */
     void *hud;      /* +0x20: ammo/hud block */
 } AmmoUser;
+
+/* Guessed full player object (2-instance array g_main_8012A574_Player,
+   stride 0x55C - confirmed by f_init_80163A10_ResetPlayers). Shares
+   AmmoUser's layout for its first 0x24 bytes (weapon-holder objects
+   pulled from g_main_8011EEFC_ObjArray are cast to the narrower AmmoUser
+   instead, since only the two fixed players get this much extra state).
+   Everything past `base` is reset-value evidence only from
+   f_init_80163A10_ResetPlayers - no read-side confirmation yet, so
+   semantics are pure guesses; the four big array regions (unk3A0..unk520)
+   are almost certainly per-weapon or per-slot tables given their loop
+   counts (8/8/8/8/10/10/10/10/10/35/35) but nothing ties them to a
+   specific meaning yet. */
+typedef struct {
+    AmmoUser base;      /* +0x000 */
+    u8 _pad24[0x34 - 0x24];
+    u32 flags34;        /* +0x034: bits masked with 0xFFFEFFFF on reset (0x10000 cleared) */
+    u8 _pad38[0xCC - 0x38];
+    s32 unkCC;           /* +0x0CC */
+    u8 _padD0[0xD8 - 0xD0];
+    s32 unkD8;           /* +0x0D8: read by f_init_8015CFEC_SyncSecondary */
+    u8 _padDC[0xE0 - 0xDC];
+    void *unkE0;          /* +0x0E0: ->+0xC read by f_init_8015CFEC_SyncSecondary */
+    u8 _padE4[0x200 - 0xE4];
+    s32 unk200;          /* +0x200: reset to 1 */
+    s32 unk204;          /* +0x204 */
+    s32 unk208;          /* +0x208 */
+    s32 unk20C;          /* +0x20C */
+    u8 _pad210[0x218 - 0x210]; /* +0x210..0x217: 4x s16, reset to -1 */
+    s16 unk218;          /* +0x218: reset to -1 */
+    s16 unk21A;          /* +0x21A: reset to -1 */
+    u8 _pad21C[0x264 - 0x21C];
+    s32 unk264;          /* +0x264 */
+    u8 _pad268[0x394 - 0x268];
+    s32 unk394;          /* +0x394 */
+    s8 unk398;           /* +0x398: reset to 1 */
+    s8 unk399;           /* +0x399: reset to 1 */
+    u8 _pad39A[0x39C - 0x39A];
+    s32 unk39C;          /* +0x39C */
+    s16 unk3A0[8];        /* +0x3A0: 8x s16, reset to -1 */
+    s16 unk3B0[8];        /* +0x3B0: 8x s16, reset to 0 */
+    s32 unk3C0;           /* +0x3C0 */
+    s32 unk3C4[8];         /* +0x3C4: 8x s32, reset to -1 */
+    s16 unk3E4[8];         /* +0x3E4: 8x s16, reset to -1 */
+    s16 unk3F4[8];         /* +0x3F4: 8x s16, reset to -1 */
+    s16 unk404[8];         /* +0x404: 8x s16, reset to -1 */
+    s16 unk414[8];         /* +0x414: 8x s16, reset to -1 */
+    s32 unk424;           /* +0x424 */
+    s16 unk428[10];        /* +0x428: 10x s16, reset to -1 */
+    s16 unk43C[10];        /* +0x43C: 10x s16, reset to 0 */
+    s8 unk450[10];         /* +0x450: 10x s8, reset to 0 */
+    s8 unk45A[10];         /* +0x45A: 10x s8, reset to 0 */
+    s8 unk464[10];         /* +0x464: 10x s8, reset to 0 */
+    u8 _pad46E[0x470 - 0x46E];
+    s32 unk470[0x23];      /* +0x470: 35x s32, reset to -1 */
+    s8 unk4FC[0x23];       /* +0x4FC: 35x s8, reset to 0 */
+    u8 _pad51F[0x520 - 0x51F];
+    s32 unk520;           /* +0x520: reset to -1 */
+    s8 unk524;            /* +0x524: reset to 0 */
+    s16 unk528;           /* +0x528: reset to -1 */
+    s16 unk52A;           /* +0x52A: reset to -1 */
+    u8 _pad52C[0x530 - 0x52C];
+    s32 unk530;           /* +0x530: reset to -1 */
+    s32 unk534;           /* +0x534: reset to -1 */
+    s32 unk538;           /* +0x538: reset to -1 */
+    u8 _pad53C[0x54C - 0x53C];
+    s32 unk54C;           /* +0x54C: reset to -1 */
+    s32 unk550;           /* +0x550: reset to -1 */
+    s32 unk554;           /* +0x554: reset to -1 */
+    s32 unk558;           /* +0x558: reset to -1 */
+} Player;
 
 /* Music-sequencer flags block g_main_8011F374_SongFlags (8011F374).
    `changed` is set when a new song id is lower than the current one. */
@@ -673,12 +796,20 @@ typedef struct MmidObj {
     struct MmidObj *tracks[1]; /* +0x10: trackCount entries */
 } MmidObj;
 
+/* guess: entry in the +0x80 tag-slot list of HandleObj80. `tag` packs an id
+   in the low 12 bits and a 0x8000 "active" flag; 0xFFFF terminates the list.
+   Confirmed stride 4 (2 bytes unused/padding) by f_main_8001035C_ClearTaggedSlot. */
+typedef struct {
+    u16 tag;        /* +0x0 */
+    u16 _pad2;      /* +0x2 */
+} TagSlot;
+
 /* Guessed handle-like object passed to f_main_80010418_GetField80. Callers
    build the value by OR-ing a raw field with 0x80000000 (turning it into a
    valid pointer); -1 is treated as "no handle". Only +0x80 is confirmed. */
 typedef struct {
     u8 _pad00[0x80];
-    s32 field80;    /* +0x80 */
+    TagSlot *slots80;    /* +0x80: list of up to 16 tag slots, 0xFFFF-terminated */
 } HandleObj80;
 
 /* guess: 3-entry table at D_80134D1C, reset by f_main_8008E14C_ResetAudioSlots.
@@ -843,6 +974,14 @@ typedef struct {
     s32 posY;       /* +0x18 */
     s32 posZ;       /* +0x1C */
 } ListenerCore;
+
+/* guess: object passed to f_main_8001926C_FindNearestSoundSource as the
+   position source (distinct from SoundListener - `core` sits at +0xC here,
+   not +0x0). Only +0xC is confirmed. */
+typedef struct {
+    u8 _pad0[0xC];
+    ListenerCore *core; /* +0xC */
+} PosSource;
 
 typedef struct {
     void *core;      /* +0x0: -> ListenerCore */
@@ -1170,8 +1309,8 @@ typedef struct {
 } TypeDefCache;
 
 /* Guessed byte-stream reader cursor, filled by func_8002B0D0 (pos = out ptr)
-   and advanced by func_801594F4 (reads/skips tokens). Seen as a stack local
-   in f_init_8015BA54_RunTokenScript. */
+   and advanced by f_init_801594F4_ReadTokenWord (reads/skips tokens). Seen
+   as a stack local in f_init_8015BA54_RunTokenScript. */
 typedef struct {
     u32 unk0;   /* +0x00: unknown, unused by f_init_8015BA54_RunTokenScript */
     u8 *pos;    /* +0x04: current read position into the token stream */

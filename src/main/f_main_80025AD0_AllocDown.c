@@ -4,7 +4,7 @@
    guessed as a generic context handle (f_main_80025B3C_SetContextPtr);
    this function clarifies it's actually the allocator's watermark. */
 extern void *g_main_8011EE2C_ContextPtr;
-extern void func_800F4190(void *dst, s32 value, s32 size); /* memset, see DOC.md (blocked PSYQ library region) */
+extern void *f_main_800F4190_memset(void *dst, s32 fillValue, s32 size);
 
 /* Bump-allocates `abs(size)` bytes by moving g_main_8011EE2C_ContextPtr
    down and 4-byte-aligning the result. A negative `size` allocates the
@@ -30,7 +30,7 @@ void *f_main_80025AD0_AllocDown(s32 size) {
     g_main_8011EE2C_ContextPtr = top;
 
     if (zeroFill)
-        func_800F4190(top, 0, n);
+        f_main_800F4190_memset(top, 0, n);
 
     return top;
 }

@@ -12,7 +12,7 @@ extern void func_8002D340(s16 weaponId, void *out);            /* not yet decomp
 extern void func_80025130(s32 id, s32 a1, void *in);            /* not yet decompiled */
 extern void func_8002D2B4(s16 weaponId, void *out);              /* not yet decompiled */
 extern void func_800249F4(s32 id, s32 a1, void *in);              /* not yet decompiled */
-extern void func_80011084(s32 id);                                  /* not yet decompiled */
+extern s32 f_main_80011084_RemoveTailNode(void *a);
 
 /* arg1: a name, resolved via f_main_8002D4B4 both as-is and as a copy of
    itself with the first character forced to 'X' (0x58), giving two ids
@@ -23,7 +23,7 @@ extern void func_80011084(s32 id);                                  /* not yet d
    (key=sp50, tag=&weaponDef+4, flags=0x04010000). On success, configures
    the fresh res (unk18=0, unk09=0x11, unk14=weaponId+0x2000) and runs it
    through func_8002D340/func_80025130 and func_8002D2B4/func_800249F4
-   (using res->tag as the target id), then func_80011084(res->tag).
+   (using res->tag as the target id), then f_main_80011084_RemoveTailNode(res->tag).
 
    Stores the (possibly NULL) result into the weapon-holder's ObjRecord
    (unk8); if a res was created AND sp54 resolved, also stashes sp54 into
@@ -63,7 +63,7 @@ void f_init_80160F74_AttachWeaponModel(s16 arg0, s8 *arg1) {
             func_8002D2B4(arg0, buf2);
             func_800249F4(tag, 0, buf2);
 
-            func_80011084(tag);
+            f_main_80011084_RemoveTailNode((void *) (u64) tag);
         }
     } else {
         res = 0;

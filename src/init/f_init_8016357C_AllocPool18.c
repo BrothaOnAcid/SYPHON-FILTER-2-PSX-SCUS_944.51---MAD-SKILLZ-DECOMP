@@ -1,14 +1,15 @@
 #include "../../include/types.h"
 
 extern void *f_main_80025AD0_AllocDown(s32 size);
-extern void func_801633DC(void *ctx, s32 a1, s32 a2); /* not yet decompiled */
+extern s32 f_init_801633DC_InitEntityFromTemplate(void *dst, void *src, void *velSrc);
 
 /* Allocates a 0x170-byte context at *out and, unless it fails, an 0x48-byte
    (18-entry, stride 4) pointer table at ctx->unk168. Fills that table with
    18 entries: if `stride0` is nonzero, each entry is `base + i*0xA8` (i.e.
    the caller already owns a flat 0x12*0xA8 array at `base` and this just
    indexes into it); otherwise each entry is a freshly-allocated 0xA8-byte
-   block. Finishes with func_801633DC(ctx, a1, a2). Returns 0 (leaving *out
+   block. Finishes with f_init_801633DC_InitEntityFromTemplate(ctx, a1, a2).
+   Returns 0 (leaving *out
    untouched or partially set) if `out` is NULL or the first allocation
    fails; 1 on success. */
 s32 f_init_8016357C_AllocPool18(void **out, s32 a1, s32 a2, s32 base) {
@@ -37,6 +38,6 @@ s32 f_init_8016357C_AllocPool18(void **out, s32 a1, s32 a2, s32 base) {
         }
     }
 
-    func_801633DC(ctx, a1, a2);
+    f_init_801633DC_InitEntityFromTemplate(ctx, (void *) a1, (void *) a2);
     return 1;
 }

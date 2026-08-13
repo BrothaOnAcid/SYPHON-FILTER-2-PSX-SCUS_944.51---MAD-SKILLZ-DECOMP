@@ -1,7 +1,7 @@
 #include "../../include/types.h"
 
 extern void f_main_80025E40_MemsetWords(void *dst, u8 val, u32 size);
-extern void func_800F4190(void *dst, s32 value, s32 size); /* memset, see DOC.md (blocked PSYQ library region) */
+extern void *f_main_800F4190_memset(void *dst, s32 fillValue, s32 size);
 
 extern u8 g_main_801283AC_unk[];   /* guess: buffer, 0x230 bytes, zeroed here */
 extern u8 g_main_801285DC_unk[];   /* guess: buffer, 0x1950 bytes, zeroed here */
@@ -21,6 +21,6 @@ void f_init_8016749C_Reset(void) {
 
     f_main_80025E40_MemsetWords(g_main_801285DC_unk, 0, 0x1950);
 
-    func_800F4190(g_main_8011F5D0_unk, 0, 8);
+    f_main_800F4190_memset(g_main_8011F5D0_unk, 0, 8);
     g_main_8011F5D8_unk = 0;
 }

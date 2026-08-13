@@ -43,7 +43,7 @@ extern void func_80066B44(void);
 extern void func_8002C7CC(void);
 extern void f_init_80167F64_ClearSlots(void); /* in INIT.OVL */
 extern void func_8004F36C(void);
-extern void func_800F4190(void *dst, s32 value, s32 size);
+extern void *f_main_800F4190_memset(void *dst, s32 fillValue, s32 size);
 extern void func_8002C7F8(void);
 extern void func_8015D0CC(s32 mode);
 extern void func_800A27C4(s32 flag);
@@ -133,7 +133,7 @@ void f_main_8002A518_InitGame(s32 arg0) {
     func_8004F36C();
 
     if (mode != 3) {
-        func_800F4190(g_main_8012A574_unk, 0, 0xAB8);
+        f_main_800F4190_memset(g_main_8012A574_unk, 0, 0xAB8);
     }
 
     for (i = 0xAD4; i >= 0; i -= 0x1C) {

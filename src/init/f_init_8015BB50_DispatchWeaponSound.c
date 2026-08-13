@@ -18,7 +18,7 @@ extern void func_8002D340(s16 weaponId, void *out);            /* not yet decomp
 extern void func_80025130(s32 ctx, s32 arg1, void *in);         /* not yet decompiled */
 extern void func_8002D2B4(s16 weaponId, void *out);             /* not yet decompiled */
 extern void func_800249F4(s32 ctx, s32 arg1, void *in);         /* not yet decompiled */
-extern void func_80011084(s32 ctx);                             /* not yet decompiled */
+extern s32 f_main_80011084_RemoveTailNode(void *a);
 
 /* Builds (or clears) a weapon's WldResEx request from its SubDefEntry:
    - unk4[0]==0 clears the object's request slot (unk8=0) and bails.
@@ -30,7 +30,7 @@ extern void func_80011084(s32 ctx);                             /* not yet decom
      default duration instead); 'E' and the fallback both hand off to
      func_80166C08 with different flags/key args.
    - Any resulting request gets its clip (arg0+0x2000) and context wired up
-     via func_8002D340/func_80025130/func_8002D2B4/func_800249F4/func_80011084,
+     via func_8002D340/func_80025130/func_8002D2B4/func_800249F4/f_main_80011084_RemoveTailNode,
      then subDef->flags2 bits tweak WldResEx.unkA/unkB and the linked
      WldTypeDef's flags28.
    - Finally obj->unk8 is (re)set to the request and, if subDef->unk10 is
@@ -120,7 +120,7 @@ void f_init_8015BB50_DispatchWeaponSound(s16 arg0, s32 arg1) {
                 func_8002D2B4(arg0, spB);
                 func_800249F4(ctx, 0, spB);
             }
-            func_80011084(ctx);
+            f_main_80011084_RemoveTailNode((void *) (u64) ctx);
 
             flags2 = g_main_8011F59C_SubDefs[subDefId].flags2;
             if (flags2 & 1) {

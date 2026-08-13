@@ -5,11 +5,12 @@ extern void *D_8011F6C4;   /* not yet decompiled */
 extern u8 D_8012B114[];    /* not yet decompiled: base of the token-script region */
 extern void (*D_8016881C[])(TokenCursor *); /* not yet decompiled: opcode -> handler table, see f_init_8015BA54_RunTokenScript */
 
-extern void func_801594F4(TokenCursor *cur, s16 *out, void *base); /* not yet decompiled: reads/skips one token, base only used to (re)init the cursor */
+extern void f_init_801594F4_ReadTokenWord(TokenCursor *cur, s16 *out); /* base arg dropped: real function only takes (cur, out), the 3rd arg passed by this caller is unused */
 
 /* guess: same opcode-script interpreter as f_init_8015BA54_RunTokenScript,
    but with the "resolve stream + cursor" step inlined instead of going
-   through func_8015944C/func_8002B0D0: derives an entry count from a field
+   through f_init_8015944C_InitTokenScriptState/f_main_8002B0D0_LoadFileAlloc:
+   derives an entry count from a field
    at +0x88 of the struct D_8011F6E0 points to (count*0x10 + 0x90, converted
    to a word offset from D_8012B114) and uses that both to set D_8011F6C4
    and to seed the cursor 0x40 bytes (0x10 words) further in. */
@@ -26,15 +27,15 @@ void f_init_8015B794_RunTokenScriptInline(void) {
     wordOff = (s32) (((u8 *) D_8011F6E0 + (*((s32 *) ((u8 *) D_8011F6E0 + 0x88)) * 0x10 + 0x90)) - D_8012B114) >> 2;
     D_8011F6C4 = D_8012B114 + wordOff * 4;
     cur.pos = D_8012B114 + (wordOff + 0x10) * 4;
-    func_801594F4(&cur, &count, D_8012B114);
+    f_init_801594F4_ReadTokenWord(&cur, &count);
     for (i = 0; i < count; i++) {
         if (*cur.pos == 0xFE) {
             do {
                 cur.pos++;
             } while (*cur.pos == 0xFE);
         }
-        func_801594F4(&cur, &op, 0);
-        func_801594F4(&cur, (s16 *) &cur, 0);
+        f_init_801594F4_ReadTokenWord(&cur, &op);
+        f_init_801594F4_ReadTokenWord(&cur, (s16 *) &cur);
         D_8016881C[op](&cur);
     }
 }

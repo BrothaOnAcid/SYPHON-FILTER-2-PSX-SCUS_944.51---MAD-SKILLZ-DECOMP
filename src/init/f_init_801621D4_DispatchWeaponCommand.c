@@ -8,13 +8,13 @@ void f_init_8015E7AC_ResolveChainedWeapon(ObjRecord *arg0);
 void f_init_801604E0_SyncChainedWeapon(ObjRecord *arg0);
 
 extern void func_8015E730(ObjRecord *arg0);   /* not yet decompiled */
-extern void func_8015EF1C(ObjRecord *arg0);   /* not yet decompiled */
-extern void func_8015F314(ObjRecord *arg0);   /* not yet decompiled */
+void f_init_8015EF1C_LinkChainedWeapon(ObjRecord *arg0);
+void f_init_8015F314_ResolveObjChain(ObjRecord *arg0);
 extern void func_8015F6EC(ObjRecord *arg0);   /* not yet decompiled */
 extern void func_80160060(ObjRecord *arg0);   /* not yet decompiled */
 extern void func_80161254(void);               /* not yet decompiled */
 extern void func_801619A0(ObjRecord *arg0);   /* not yet decompiled */
-extern void func_80161EF8(ObjRecord *arg0);   /* not yet decompiled */
+extern void f_init_80161EF8_SyncWeaponChain(ObjRecord *arg0);
 
 /* The master per-command weapon dispatcher for the whole chain family:
    ties together f_init_8016112C_UpdateChainFlags, f_init_80161E28_
@@ -38,15 +38,15 @@ void f_init_801621D4_DispatchWeaponCommand(ObjRecord *arg0, s32 cmd) {
     } else if (mode == 0xA) {
         f_init_8016112C_UpdateChainFlags(arg0, cmd);
     } else if (mode == 8 && cmd != 0xF) {
-        func_8015F314(arg0);
+        f_init_8015F314_ResolveObjChain(arg0);
     } else if (mode == 0xE || (u32) (cmd - 0x20) < 2) {
         f_init_80161E28_UpdateWeaponTrack(arg0);
     } else if (mode == 5) {
         f_init_8015EBB8_PropagateWeaponChain(arg0);
     } else if (cmd == 9) {
-        func_8015EF1C(arg0);
+        f_init_8015EF1C_LinkChainedWeapon(arg0);
     } else if (mode == 7) {
-        func_80161EF8(arg0);
+        f_init_80161EF8_SyncWeaponChain(arg0);
     } else if (cmd == 0x40) {
         f_init_801609B8_PropagateChainState(arg0);
     } else if (cmd == 0x55) {
