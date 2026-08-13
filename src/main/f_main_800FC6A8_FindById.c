@@ -10,12 +10,12 @@
    f_main_800FC9C4_NotifySlotsByTag walking the same list and indexing
    +0x18/+0x20 as count/slots) - the nodes f_main_800FC728_InitMmidNode
    resolves leaf "MID " tracks against. */
-extern SongTree *g_main_8012F408_unk;
+extern SongTree *g_main_8012F408_SongTreeListHead;
 
 /* searches the list for a node whose `tag` field equals `id`; returns the
    match, or 0 if not found (including an empty list). */
 SongTree *f_main_800FC6A8_FindById(s32 id) {
-    SongTree *node = g_main_8012F408_unk;
+    SongTree *node = g_main_8012F408_SongTreeListHead;
 
     while (node != 0) {
         if (node->tag == id) {

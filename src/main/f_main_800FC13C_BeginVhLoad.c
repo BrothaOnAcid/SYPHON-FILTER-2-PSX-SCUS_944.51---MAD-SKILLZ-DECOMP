@@ -2,26 +2,36 @@
 
 /* Blocked-region code (0x800EFD3C-0x80168298, see DOC.md), hand-decoded
    from raw words with toolz/decode_mips.py; uses the same alternate gp
-   base (0x8012EC64) as g_main_8012F41C_AudioSeq. */
+   base (0x8012EC64) as g_main_8012F41C_AudioSeq.
+
+   `rec` is a SongTree/SBNK blob loaded whole into RAM (see SongTree's doc
+   comment in types.h for the on-disk layout this function relocates). */
 extern s32 g_main_8012F400_LoadBusy; /* guess: reentrancy guard, gp+0x79C */
 extern s32 g_main_8012F404_LoadArg;  /* guess: stashed `a4`, gp+0x7A0 */
 
-extern s32 func_80105384(s32 src);              /* guess: alt-path VAB init, returns a handle */
-extern s32 func_80105550(s32 handle, s32 src);   /* guess: normal-path VAB init */
-extern s32 func_8010597C(s32 handle);            /* guess: validates/echoes back a handle */
+extern s32 f_main_80105384_AllocResident(s32 size);
+extern s32 func_80105550(s32 addr, s32 size);    /* guess: f_main_80105550_ClaimResident -
+                                                     coalescing-free-style scan claiming an
+                                                     already-known [addr,addr+size) range out
+                                                     of the resident free list; not decompiled
+                                                     with confidence, left extern */
+extern s32 func_8010597C(s32 addr);              /* guess: validates/echoes back a handle */
 extern void func_801059DC(void *node);           /* guess: registers a load node */
 extern u32 func_80105A0C(s32 findResult, u32 residentSize); /* guess: kicks off the stream read, returns bytes queued */
 
-/* guess: kicks off a streamed VH/VAB load for `rec` (the resource record
+/* Kicks off a streamed VH/SBNK load for `rec` (the resource record
    FindResource wrote its out-pointer into). On the first call (`a3==0`)
-   this initializes the VAB handle (two variants gated by rec->flags08 bit
-   2) and, once validated, relocates rec's three offset fields to absolute
-   pointers (self-relative, `+= rec`) exactly once (bit 0 latch). It then
-   always stashes `a4`, registers a load node, and starts the stream read;
-   success latches g_main_8012F400_LoadBusy so a second call returns -4
-   until the in-flight load is polled to completion
-   (f_main_800FC268/f_main_800FC274, not yet decompiled). */
-s32 f_main_800FC13C_BeginVhLoad(VhLoadRecord *rec, s32 findResult, u32 residentSize, s32 a3, s32 a4) {
+   this obtains a resident buffer for `rec`'s data - either freshly
+   allocated (f_main_80105384_AllocResident, when flags08 bit2 is set) or
+   claimed at an already-known address (func_80105550, bit2 clear) -
+   storing the result in rec->residentAddr. Once validated, relocates
+   rec's `slots`/`progs`/`tones` fields from file-relative offsets to
+   absolute pointers exactly once (bit0 latch). It then always stashes
+   `a4`, registers a load node, and starts the stream read; success
+   latches g_main_8012F400_LoadBusy so a second call returns -4 until the
+   in-flight load is polled to completion (f_main_800FC268_IsVhLoadDone /
+   f_main_800FC274_FinalizeVhLoad). */
+s32 f_main_800FC13C_BeginVhLoad(SongTree *rec, s32 findResult, u32 residentSize, s32 a3, s32 a4) {
     s32 h;
 
     if (g_main_8012F400_LoadBusy != 0)
@@ -29,22 +39,22 @@ s32 f_main_800FC13C_BeginVhLoad(VhLoadRecord *rec, s32 findResult, u32 residentS
 
     if (a3 == 0) {
         if (rec->flags08 & 4) {
-            h = func_80105384(rec->unk30);
-            rec->unk2C = h;
+            h = f_main_80105384_AllocResident(rec->unk30);
+            rec->residentAddr = h;
         } else {
-            h = func_80105550(rec->unk2C, rec->unk30);
+            h = func_80105550(rec->residentAddr, rec->unk30);
         }
 
         if (h == 0)
             return -0xF;
 
-        if (func_8010597C(rec->unk2C) != rec->unk2C)
+        if (func_8010597C(rec->residentAddr) != rec->residentAddr)
             return -0xD;
 
         if (!(rec->flags08 & 1)) {
-            rec->unk20 += (s32) PTR_U32(rec);
-            rec->unk24 += (s32) PTR_U32(rec);
-            rec->unk28 += (s32) PTR_U32(rec);
+            rec->slots = (SongSlot *) ((u8 *) rec->slots + PTR_U32(rec));
+            rec->progs += PTR_U32(rec);
+            rec->tones += PTR_U32(rec);
             rec->flags08 |= 1;
         }
     }

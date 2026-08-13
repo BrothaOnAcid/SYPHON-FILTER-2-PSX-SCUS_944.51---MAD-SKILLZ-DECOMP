@@ -29,7 +29,7 @@ extern WldClipSlot *g_main_8011F968_ClipSlots;
 extern s32 g_main_8011F97C_ClipStreamBase; /* running streaming-buffer cursor */
 extern WldStreamCtx *g_main_8011F598_StreamCtx;
 
-extern u8 D_8010C3B4[]; /* unexamined, passed straight through to func_80166C08 */
+extern u8 D_8010C3B4[]; /* unexamined, passed straight through to f_init_80166C08_CreateWldRes as `tag` */
 
 /* --- libc-style / unexamined externs --- */
 extern void func_800F045C(void *pathBuf, const char *fmt, s8 *dir); /* sprintf */
@@ -40,7 +40,7 @@ extern void *f_main_80025AD0_AllocDown(s32 size);
 extern void func_800F8268(s32 sector, u32 *out); /* guess: resolves/queues sector info into *out */
 extern s8 *f_main_800F8238_strchr(const s8 *s, s32 c); /* PSX BIOS trampoline, A0 index 0x1E (index/strchr family) */
 extern s32 func_800F9244(const s8 *s, s32 unused); /* guess: strlen-like scan over the names blob; 2nd arg appears dead (leftover register) */
-extern s32 func_80166C08(s32 a0, void *a1, u32 flags, WldModelHandle *out); /* guess: create/load a named resource into out->res */
+extern s32 f_init_80166C08_CreateWldRes(s32 key, s32 tag, s32 flags, WldRes **out);
 extern void func_800A2370(void *out, u8 id, s32 flag, u8 prevId, u8 selfId); /* 5th arg is a stack arg m2c didn't surface; out is a small local scratch buffer, contents unconfirmed */
 extern void func_800A3690(u8 id);
 extern void f_main_8002B354_LoadOverlay(s8 *name, u8 param);
@@ -50,7 +50,7 @@ extern void f_main_8002B354_LoadOverlay(s8 *name, u8 param);
    tables used by the streaming system:
    - opens the archive, parses its TOC (g_main_8011F978_WldToc) and fills one
      WldModelSlot per entry (name, sector-rounded size, index) plus a
-     WldModelHandle slot that gets its resource loaded via func_80166C08,
+     WldModelHandle slot that gets its resource loaded via f_init_80166C08_CreateWldRes,
      tagging "referenced by this level" / "type '8'/'9'" models with
      WldTypeDef.flags28 bits.
    - sizes a pool of streaming clip slots (g_main_8011F968_ClipSlots) to the
@@ -143,7 +143,7 @@ void f_init_801627C0_LoadWldModels(s32 n, u8 attach) {
             *dot = 0;
 
         hnd = &g_main_8011F680_ModelHandles[i];
-        func_80166C08(-1, D_8010C3B4, 0x01000000, hnd);
+        f_init_80166C08_CreateWldRes(-1, (s32) PTR_U32(D_8010C3B4), 0x01000000, &hnd->res);
         hnd->res->flagsB |= 0x40;
 
         if (found) {

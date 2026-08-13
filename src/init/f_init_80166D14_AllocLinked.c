@@ -1,21 +1,23 @@
 #include "../../include/types.h"
 
-extern void func_80017EAC(void *obj, s32 owner);
-extern void *func_80166568(s32 a0, s32 a1, s32 flags);
+extern WldTypeDef *f_init_80166568_InternTypeDef(s32 key, WldRes *res, s32 flags);
+extern s32 f_main_80017EAC_InitEagerModel(WldTypeDef *typeDef, s16 *key);
 
-/* arg0: owner/key value (0 => no-op); arg1: flags, bit 0x01000000 skips the
-   func_80017EAC link-back step. */
-void *f_init_80166D14_AllocLinked(s32 arg0, s32 arg1) {
-    void *obj;
+/* Same typeDef resolve/init sequence as f_init_80166C08_CreateWldRes, minus
+   the WldRes wrapper allocation (interns/creates a WldTypeDef directly, no
+   caller-visible handle). arg0: owner/key value (0 => no-op); arg1: flags,
+   bit 0x01000000 skips the f_main_80017EAC_InitEagerModel link-back step. */
+WldTypeDef *f_init_80166D14_AllocLinked(s32 arg0, s32 arg1) {
+    WldTypeDef *typeDef;
 
     if (arg0 == 0)
         return 0;
 
-    obj = func_80166568(arg0, 0, arg1);
+    typeDef = f_init_80166568_InternTypeDef(arg0, 0, arg1);
 
     if (!(arg1 & 0x01000000))
-        func_80017EAC(obj, arg0);
+        f_main_80017EAC_InitEagerModel(typeDef, (s16 *) (u64) (u32) arg0);
 
-    *(s32 *) ((u8 *) obj + 0x20) = arg0;
-    return obj;
+    typeDef->dataPtr = arg0;
+    return typeDef;
 }

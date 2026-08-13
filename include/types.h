@@ -74,15 +74,28 @@ typedef struct {
     s32 unk10;  /* +0x10: guess: read-cursor copy of size, set by f_main_800265A8_PrepareRead */
 } FileHandle;
 
-/* Guessed from f_main_80026E00_FindResource. Matches knowledge.txt's ".HOG"
-   description (resource archive with a filename TOC): a named-entry lookup
-   table, all fields are byte offsets relative to the HogToc itself. */
+/* From f_main_80026E00_FindResource, f_main_80026F4C_FindNamedIndex,
+   f_main_80026D98_GetEntrySize. Matches knowledge.txt's ".HOG" description
+   (resource archive with a filename TOC): a named-entry lookup table, all
+   fields are byte offsets relative to the HogToc itself.
+
+   CONFIRMED byte-exact (2026-08-12) against the audio bundle found inside
+   toolz/test_fog's arena13.fog -> VLF.RFF (see toolz/AUDIO_SEQ_TODO.md):
+   this is the SAME format as f_init_80168190_LoadSongTree's `table` arg
+   (the per-level SLF.RFF-derived resource, dereferenced once - callers
+   pass a pointer-to-HogToc-pointer, see f_main_80026F4C_FindNamedIndex's
+   `HogToc **`) - i.e. the level's SBNK/MMID bundle IS a regular HOG
+   archive. `valuesOffset` points to `count+1` entries (a boundary array:
+   entry i spans [values[i], values[i+1]) relative to dataOffset), not
+   `count` independent values as originally guessed - f_main_80026E00_
+   FindResource only ever reads values[i] as a start offset so this wasn't
+   visible from that call site alone. */
 typedef struct {
     s32 unk00;         /* guess: unused by lookup, maybe a magic/id */
     s32 count;         /* number of named entries */
-    s32 valuesOffset;  /* offset to an s32[count] array of per-entry values */
+    s32 valuesOffset;  /* offset to an s32[count+1] boundary array */
     s32 namesOffset;   /* offset to a blob of concatenated NUL-terminated filenames, in entry order */
-    s32 dataOffset;    /* offset added to array[i] to get entry i's resource data pointer */
+    s32 dataOffset;    /* offset added to values[i] to get entry i's resource data pointer */
 } HogToc;
 
 /* Guessed wrapper: offset 0 holds the actual HogToc pointer (NULL if the
@@ -286,15 +299,82 @@ typedef struct {
    records indexed by weapon id); +0x24 selects the ammo type. +0x28 carries
    a per-id "type" used by the music sequencer too. */
 typedef struct {
-    u8 _pad00[0x24];
+    s32 unk00;      /* +0x00: index into a 0x14-byte-stride table (D_8011F59C), used to seed unk2A */
+    u8 _pad04[0x24 - 0x4];
     u16 ammoType;   /* +0x24: ammo type index (low 6 bits used) */
     s16 unk28;      /* +0x28: per-id type (music module: track type) */
-    u8 unk2A;       /* +0x2A: mode flag, 0x24 = special-case in f_init_80161E28_UpdateWeaponTrack */
-    u8 _pad2B[0x30 - 0x2B];
+    u8 unk2A;       /* +0x2A: mode flag, 0x24 = special-case in f_init_80161E28_UpdateWeaponTrack;
+                        seeded from D_8011F59C[unk00] by f_init_8015C648_InitWeaponObjects */
+    u8 _pad2B;
+    void *unk2C;    /* +0x2C: self-relative offset in the level blob, relocated to an
+                        absolute pointer by f_init_80158E3C_LoadLevelHeader (only if nonzero) */
     s32 unk30;      /* +0x30: index into g_main_8011EEFC_ObjArray, -1 = none */
-    u8 _pad34[0x4A - 0x34];
+    s32 unk34;      /* +0x34: cleared alongside ammoType by f_init_8015C648_InitWeaponObjects when func_8002D4FC skips this id */
+    void *unk38;    /* +0x38: only ever read as an ObjRecord.unk18 seed, see f_init_8015C648_InitWeaponObjects */
+    u8 _pad3C[0x48 - 0x3C];
+    s16 chainId;    /* +0x48: another weapon id, -1 = none, see f_init_801604E0_SyncChainedWeapon */
     s16 unk4A;      /* +0x4A: written by f_init_8015E9C0_SyncTrackParams (truncated s32 result) */
 } WeaponDef;
+
+/* Guessed 0x14-byte record, table g_main_8011F59C_SubDefs indexed by
+   WeaponDef.unk00 (confirmed by f_init_8015C648_InitWeaponObjects, which
+   reads unk0, and f_init_8016112C_UpdateChainFlags, which follows unk4). */
+typedef struct {
+    u16 unk0;    /* +0x00: seeds WeaponDef.unk2A */
+    u16 flags2;  /* +0x02: bit 1 -> WldResEx.unkA |= 0x20 + typeDef->flags28 |= 0x8000,
+                    bit 2 -> WldResEx.unkB |= 8, see f_init_8015BB50_DispatchWeaponSound */
+    u8 *unk4;    /* +0x04: pointer to a flag byte, dereferenced by f_init_8016112C_UpdateChainFlags;
+                    also a filename buffer (fed to func_800F9244/func_800F8228 with ".HAN") in
+                    f_init_8015BB50_DispatchWeaponSound */
+    s32 unk8;    /* +0x08: intern key passed as f_init_80166A70_CreateWldResEx/func_80166C08's
+                    first arg (== the interning key for f_init_80166568_InternTypeDef); 0 skips
+                    all of f_init_8015BB50_DispatchWeaponSound's request setup */
+    void *unkC;  /* +0xC: self-relative offset in the level blob, relocated to an
+                    absolute pointer by f_init_80158E3C_LoadLevelHeader */
+    void *unk10; /* +0x10: secondary handle, passed to func_800A3A00 and stashed into
+                    WldResEx.unk10->unk24, see f_init_8015BB50_DispatchWeaponSound */
+} SubDefEntry;
+
+/* Guessed 0x14-byte envelope/timing block, allocated and zero/500-initialized
+   by f_init_80166A70_CreateWldResEx, hung off WldResEx.unk1C. Fields at
+   +0x4/+0x6/+0x8 (u16, init 500) look like attack/decay/sustain-style times;
+   +0x0/+0xA/+0xC/+0x10 are zeroed. */
+typedef struct {
+    u32 unk0;   /* +0x0: init 0 */
+    u16 unk4;   /* +0x4: init 500 */
+    u16 unk6;   /* +0x6: init 500 */
+    u16 unk8;   /* +0x8: init 500 */
+    u16 unkA;   /* +0xA: init 0 */
+    u16 unkC;   /* +0xC: init 0 */
+    u16 unkE;   /* +0xE: init 0 */
+    u32 unk10;  /* +0x10: init 0 */
+} EnvBlock;
+
+/* CONFIRMED (2026-08-12) by f_init_8015C648_InitWeaponObjects, which
+   allocates g_main_8011F564_ObjCount of these (stride 0x28) and points
+   g_main_8011EEFC_ObjArray at the ones that pass func_8002D4FC. This is the
+   "weapon-holder object" every other init.ovl weapon function has been
+   accessing via raw void*+offset casts (flags0 @0x0, unk1 @0x1, weaponId
+   @0x2, unk4 bitfield @0x4, mode @0x26, flags27 @0x27, etc.) - kept as
+   void* casts in those older files rather than retrofitted, but new code
+   should use this type directly. */
+typedef struct {
+    u8 flags0;    /* +0x00 */
+    u8 unk1;      /* +0x01: bit 0x80 tested by f_init_8015E850_ResetTypeDefCacheAndNotify */
+    s16 weaponId; /* +0x02 */
+    u32 unk4;     /* +0x04: bitfield, low byte = cache/level index, 0xF000 nibble = level */
+    void *unk8;   /* +0x08: WldRes* in some contexts (see f_init_8015E370_GrowBoxToSize's BoxOwner) */
+    u32 unkC;
+    u32 unk10;
+    u32 unk14;
+    void *unk18;  /* +0x18: seeded to &WeaponDefs[id].unk38, see f_init_8015C648_InitWeaponObjects */
+    u32 unk1C;
+    u32 unk20;
+    u8 unk24;     /* +0x24: init 6 */
+    u8 unk25;
+    u8 mode;      /* +0x26: e.g. compared to 5/7 by the weapon-chain family */
+    u8 flags27;   /* +0x27: bit 0x2/0x40 set by various weapon-chain functions */
+} ObjRecord;
 
 /* Guessed per-weapon block (AmmoUser +0x1C -> +0x08). */
 typedef struct {
@@ -311,7 +391,8 @@ typedef struct {
    pointer select sub-indices and whose byte +0xC holds a mode flag; `hud`
    (+0x20) is the ammo/hud block (ammo slots at +0x44, stride 4). */
 typedef struct {
-    u8 _pad00[0x2];
+    u8 _pad00;
+    u8 flags1;      /* +0x01: bit 0x40 = "large ammo type or special/hidden weapon", see f_init_80160E64_UpdateAmmoDisplayFlags */
     s16 weaponId;   /* +0x02: current weapon id */
     u8 _pad04[0x8];
     ActorCore *core; /* +0x0C: actor core (act at +0x158) */
@@ -458,18 +539,90 @@ typedef struct SongSlot {
     u8 _pad20[4];
 } SongSlot;
 
-/* Guessed owner of a SongSlot array (`slots`, +0x20); `count` (+0x18)
-   bounds the valid index range. Also lives on the global list at
-   g_main_8012F408_unk (chained via `next`, matched by `tag` - see
-   f_main_800FC6A8_FindById / f_main_800FC9C4_NotifySlotsByTag). */
+/* Owner of a SongSlot array (`slots`, +0x20); `count` (+0x18) bounds the
+   valid index range. Lives on the global list at g_main_8012F408_unk
+   (chained via `next`, matched by `tag`/name - see
+   f_main_800FC6A8_FindById / f_main_800FC9C4_NotifySlotsByTag).
+
+   CONFIRMED (2026-08-12) to be the same object previously guessed as a
+   separate "VhLoadRecord" (see f_main_800FC13C_BeginVhLoad /
+   f_main_800FC274_FinalizeVhLoad): it's the in-place-relocated on-disk
+   "SBNK" bank blob, loaded whole into RAM by f_init_80168190_LoadSongTree
+   and stored into g_main_80134CF4_SongTrees[kind]. Reverse-engineered
+   on-disk layout of the first 0x30 bytes (from toolz/test_fog's
+   arena13.fog -> VLF.RFF, e.g. the "AM2P" bank):
+     +0x00 char magic[4]      "SBNK"
+     +0x04 u32 version        BIG-ENDIAN (matches VAG/VAB header convention,
+                               see snd_mgr.c's SWAP_ENDIAN32) - seen value 1
+     +0x08 u32 flags          bit0 = "pointer fields relocated" (set once by
+                               BeginVhLoad), bit2 = alt-init path selector
+     +0x0C s32 tag            packed 4-char name ("AM2P" etc), doubles as
+                               the FindById match key
+     +0x10 u16 unk10          seen value 1, meaning unknown
+     +0x12 u16 unk12          seen value 0x7F (127), meaning unknown
+     +0x14 (next, see below - zero on disk, filled in at link time)
+     +0x18 s16 count          SongSlot count (seen value 64)
+     +0x1A s16 progCount      count of the 8-byte "program" array at +0x24
+     +0x1C s16 toneCount      count of the 24-byte "tone" array at +0x28
+     +0x1E u16 unk1E          seen value 0x11 (17), meaning unknown
+     +0x20 (slots, see below - file-relative offset, self-relocated +=this)
+     +0x24 (progs, see below - file-relative offset, self-relocated +=this)
+     +0x28 (tones, see below - file-relative offset, self-relocated +=this)
+     +0x2C s32 residentAddr   alt-init: allocated by f_main_80105384_AllocResident(unk30)
+                               and stored here; normal-init: passed in already
+                               and claimed via f_main_80105550_ClaimResident.
+                               Used by f_main_800FC274_FinalizeVhLoad as the
+                               addend for each tone's +0x14 sample pointer.
+     +0x30 s32 unk30          alt-init: size to allocate; normal-init: source
+                               size/pointer of an already-known buffer
+   +0x20/+0x24/+0x28 start as offsets relative to the record's own address
+   and get fixed up to absolute pointers exactly once, in
+   f_main_800FC13C_BeginVhLoad (gated by flags08 bit0). Each `tones[]`
+   entry's own +0x14 field gets a SECOND relocation pass in
+   f_main_800FC274_FinalizeVhLoad, adding `residentAddr` (+0x2C) - almost
+   certainly turning a sample-data offset into an absolute pointer into the
+   resident/SPU-side sample buffer once that buffer is filled. The `progs[]`
+   entries only relocate their own +4 field (self-relative, += this record),
+   left unnamed pending further decoding - see toolz/AUDIO_SEQ_TODO.md. */
 typedef struct SongTree {
-    u8 _pad00[0xC];
+    u8 _pad00[0x8];
+    u32 flags08;         /* +0x08: bit0 = pointer fields relocated, bit1 = "compiled"
+                             (see f_main_800FC3F0_CompileEventLists), bit2 = alt-init path */
     s32 tag;             /* +0x0C: match key for f_main_800FC6A8_FindById */
     struct SongTree *next; /* +0x14: g_main_8012F408_unk list link */
     s16 count;          /* +0x18 */
-    u8 _pad1A[4];
+    s16 progCount;       /* +0x1A */
+    s16 toneCount;       /* +0x1C */
+    u8 _pad1E[2];
     SongSlot *slots;    /* +0x20 */
+    u8 *progs;           /* +0x24: progCount x 8-byte records, fields not decoded */
+    u8 *tones;           /* +0x28: toneCount x 24-byte records; +0x14 of each
+                             is a sample pointer, relocated against residentAddr */
+    s32 residentAddr;    /* +0x2C */
+    s32 unk30;            /* +0x30 */
 } SongTree;
+
+/* Alias for the pre-unification name used at the two VH-streaming call
+   sites (f_main_800FC13C_BeginVhLoad, f_main_800FC274_FinalizeVhLoad) -
+   same object as SongTree, see its doc comment. */
+typedef SongTree VhLoadRecord;
+
+/* Guessed free-list node for the "resident" (streamed-VH) memory allocator
+   - a segregated free-list heap, 17 size buckets at g_main_80141F20_ResidentBuckets
+   (each itself one of these nodes, stride 0x18/24 bytes) plus a global
+   sorted-by-address free list at g_main_8012F484_ResidentFreeHead. See
+   f_main_80105384_AllocResident / f_main_801057B8_InsertFreeNode /
+   f_main_80105700_UnlinkFreeNode / f_main_80105844_FindFreeNode. */
+typedef struct ResidentFreeNode {
+    s32 addr;                       /* +0x00: block start address */
+    s32 size;                        /* +0x04: block size in bytes */
+    s32 inList;                      /* +0x08: 1 if linked directly into the main
+                                         sorted list, 0 if only reachable via a
+                                         same-size sibling's `bucketNext` chain */
+    struct ResidentFreeNode *prev;  /* +0x0C: sorted-by-address list prev */
+    struct ResidentFreeNode *bucketNext; /* +0x10: same-size sibling chain */
+    struct ResidentFreeNode *next;  /* +0x14: sorted-by-address list next */
+} ResidentFreeNode;
 
 /* Guessed sound-effect rate-limit rule (g_main_80134E2C_RateLimits[5]),
    consulted by f_main_8008D21C_PlaySound: if `id` falls in [idMin, idMax]
@@ -786,20 +939,76 @@ typedef struct {
 /* Guessed resource object loaded via func_80166C08, pointed to by
    WldModelHandle.res. */
 typedef struct WldTypeDef WldTypeDef;
+
+/* 0x1C-byte handle allocated by f_init_80166C08_CreateWldRes (bump-allocated
+   via f_main_80025AD0_AllocDown). `key` doubles as the interning key AND is
+   stored verbatim into the shared typeDef's `dataPtr` - see WldTypeDef. */
 typedef struct {
-    u8 _pad00[0x8];
+    u32 unk00;       /* +0x00: zeroed at creation */
+    u32 unk04;       /* +0x04: zeroed at creation */
     u8 flags8;       /* +0x08: bit 0x08 toggled by f_main_800AFF0C_SetModelFlag8 */
-    u8 _pad09[0x2];
+    u8 unk09;        /* +0x09: constant 0x40 at creation, meaning unknown */
+    u8 unk0A;        /* +0x0A: zeroed at creation */
     u8 flagsB;       /* +0x0B: bit 0x40 set once loaded */
-    u8 _pad0C[0x4];
+    s32 tag;         /* +0x0C: caller-supplied id/tag, see f_init_80166C08_CreateWldRes arg `tag` */
     WldTypeDef *typeDef; /* +0x10 */
+    u32 unk14;       /* +0x14: zeroed at creation */
+    u32 unk18;       /* +0x18: zeroed at creation */
 } WldRes;
 
-/* Guessed per-model-type definition (WldRes.typeDef). */
+/* Guessed 0x2C-byte extended WldRes, allocated and returned via out-param by
+   f_init_80166A70_CreateWldResEx (see f_init_8015BB50_DispatchWeaponSound).
+   The first 0x1C bytes line up field-for-field with WldRes (typeDef holds
+   the WldTypeDef* from f_init_80166568_InternTypeDef); unk1C/unk28 are
+   extra fields beyond plain WldRes. */
+typedef struct {
+    WldRes base;     /* +0x00 */
+    EnvBlock *unk1C; /* +0x1C */
+    u8 _pad20[0x28 - 0x20];
+    u32 unk28;       /* +0x28: init 0 */
+} WldResEx;
+
+/* Guessed per-model-type definition, shared/interned by
+   f_init_80166568_InternTypeDef (parallel tables g_main_8011F4B8_TypeDefKeys/
+   g_main_8011F4D4_TypeDefTable) and built by f_init_80166C08_CreateWldRes.
+   `dataPtr` is set directly from the caller's `key` argument (same value
+   used to intern-match this typeDef) - i.e. this IS the resolved raw
+   model-data pointer (e.g. from a HOG TOC lookup), not a separate streaming
+   address; multiple attachments sharing the same key/data pointer share one
+   typeDef - though f_init_80166568_InternTypeDef unconditionally zeroes
+   dataPtr/unk24/unk2C on every call (even for a reused typeDef), so the
+   caller (f_init_80166C08_CreateWldRes) always re-applies dataPtr = key
+   right after.
+
+   unk00..unk18 are filled by func_80017EAC (guess: "eager" model init, run
+   when flags28 bit 0x4000000 is set) by widening 6 CONSECUTIVE s16 fields
+   read from the raw model data (dataPtr/key) at file offsets +0xA, +0xC,
+   +0xE, +0x10, +0x12, +0x14 - i.e. this is a chunk of the .EMD file's own
+   header, copied out once at load time.
+
+   CONFIRMED bounding-box min/max (2026-08-12): f_init_8015E370_GrowBoxToSize
+   and f_init_8015E42C_ShrinkBoxToSize both treat unk00/04/08 as a min corner
+   and unk10/14/18 as the matching max corner, symmetrically growing or
+   shrinking each axis about its center to hit a target size - the classic
+   min/max AABB shape, not vertex/primitive counts. */
 struct WldTypeDef {
-    u8 _pad00[0x20];
-    s32 dataPtr;     /* +0x20: guess: resolved streaming data pointer (high bit masked off) */
-    u32 flags28;     /* +0x28: bits 0x20000/0x100000/0x200000 set by the loader, by model "type" byte */
+    s32 min0;        /* +0x00: bbox min.x, from model data +0xA (s16, widened) */
+    s32 min1;        /* +0x04: bbox min.y, from model data +0xC (s16, widened) */
+    s32 min2;        /* +0x08: bbox min.z, from model data +0xE (s16, widened) */
+    u8 _pad0C[0x10 - 0xC];
+    s32 max0;        /* +0x10: bbox max.x, from model data +0x10 (s16, widened) */
+    s32 max1;        /* +0x14: bbox max.y, from model data +0x12 (s16, widened) */
+    s32 max2;        /* +0x18: bbox max.z, from model data +0x14 (s16, widened) */
+    u8 _pad1C[0x20 - 0x1C];
+    s32 dataPtr;     /* +0x20: resolved model-data pointer, == the intern key; zeroed by
+                         f_init_80166568_InternTypeDef, re-set by f_init_80166C08_CreateWldRes */
+    u32 unk24;       /* +0x24: zeroed by f_init_80166568_InternTypeDef, meaning unknown */
+    u32 flags28;     /* +0x28: bits 0x20000/0x100000/0x200000 set by the loader, by model "type" byte;
+                         also 0x800000 set by f_init_80166568_InternTypeDef on a debug/placeholder
+                         (0xBADBAD00-tagged) resource */
+    u32 unk2C;       /* +0x2C: zeroed by f_init_80166568_InternTypeDef, meaning unknown */
+    u8 _pad30[0x74 - 0x30];
+    u32 unk74;       /* +0x74: constant -1 at creation, meaning unknown (guess: refcount/index sentinel) */
 };
 
 /* Guessed per-model resource handle slot (array g_main_8011F680_ModelHandles,
@@ -831,23 +1040,6 @@ typedef struct {
                           is a WldModelSlot index (0xFE = "self/skip" marker) */
 } WldStreamCtx;
 
-/* Guessed streamed-VAB/VH load record, returned via
-   f_main_80026E00_FindResource's out-param and consumed by
-   f_main_800FC13C_BeginVhLoad. +0x08 bit0 = "pointer fields relocated",
-   bit2 = alt-init path; +0x20/+0x24/+0x28 start as offsets and get fixed
-   up to absolute pointers (base-relative, `+= this`) the first time
-   through; +0x2C is a handle produced by the alt-init call; +0x30 is the
-   raw (still HOG-relative) source pointer. */
-typedef struct {
-    u8 _pad00[0x8];
-    u32 flags08;   /* +0x08 */
-    u8 _pad0C[0x20 - 0xC];
-    s32 unk20;     /* +0x20 */
-    s32 unk24;     /* +0x24 */
-    s32 unk28;     /* +0x28 */
-    s32 unk2C;     /* +0x2C */
-    s32 unk30;     /* +0x30 */
-} VhLoadRecord;
 
 /* Guessed generic 16-byte position record (x/z only confirmed, by
    f_main_80027354_FastDist2D; y/w are read/written by callers but never
@@ -961,5 +1153,28 @@ typedef struct {
     u8 unk31; /* +0x31: own slot id */
     u8 _pad32[0x3C - 0x32];
 } SlotRecord;
+
+/* Guessed fixed-size (7-slot) typeDef cache, global g_main_80168AA8_TypeDefCache.
+   count caps at 7; keys/values are parallel, matched by index. Filled/read
+   by f_init_8015ECC0_CacheTypeDefSlot, whose caller stashes the matched (or
+   newly inserted) index into the caller object's own +0x4 low byte. Each
+   `values[i]` is itself a ListHead (confirmed by f_main_80025C3C_AddNode,
+   which f_init_8015ECC0_CacheTypeDefSlot calls with &values[i]) - i.e. each
+   cache slot roots its own list of nodes owned by the objects sharing that
+   typeDef. */
+typedef struct {
+    s16 count;         /* +0x00 */
+    s16 _pad2;
+    WldTypeDef *keys[7];  /* +0x04..+0x20 */
+    ListHead values[7];    /* +0x20..+0x3C */
+} TypeDefCache;
+
+/* Guessed byte-stream reader cursor, filled by func_8002B0D0 (pos = out ptr)
+   and advanced by func_801594F4 (reads/skips tokens). Seen as a stack local
+   in f_init_8015BA54_RunTokenScript. */
+typedef struct {
+    u32 unk0;   /* +0x00: unknown, unused by f_init_8015BA54_RunTokenScript */
+    u8 *pos;    /* +0x04: current read position into the token stream */
+} TokenCursor;
 
 #endif

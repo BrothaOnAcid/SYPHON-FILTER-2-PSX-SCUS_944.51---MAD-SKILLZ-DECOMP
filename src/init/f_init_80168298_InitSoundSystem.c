@@ -30,7 +30,7 @@ extern u8 g_main_8011F90C_unk;
 extern s32 f_main_8010008C_SetAudioMode(s32 mode);
 extern void f_main_801001C4_SetVolumeGated(s16 volL, s16 volR);
 extern s32 f_main_80026C8C_LoadResource(s8 *path, void *arg1, void **outPtr);
-extern void f_init_80168190_LoadSongTree(s32 kind, const s8 *name, void *unused, void *table);
+extern void f_init_80168190_LoadSongTree(s32 kind, const s8 *name, void *unused, HogToc **table);
 extern void f_main_80025B3C_SetContextPtr(void *ptr);
 extern s32 f_main_80026E00_FindResource(HogArchive *archive, const s8 *name, void **out);
 extern s32 f_main_800FC728_InitMmidNode(MmidObj *obj);
@@ -48,8 +48,8 @@ extern void f_main_8008E14C_ResetAudioSlots(void);
 void f_init_80168298_InitSoundSystem(void *path, s32 unused1, void *unused2, s32 unused3) {
     s32 mode;
     s32 level;
-    void *result;
-    void *sbnkPtr;
+    HogToc **result;
+    HogToc *sbnkPtr;
     s32 i;
 
     (void) unused1;
@@ -73,10 +73,10 @@ void f_init_80168298_InitSoundSystem(void *path, s32 unused1, void *unused2, s32
     /* Resolve the per-level SBNK table via `path`, then load 4 SBNK-backed
        song trees (kinds 3, 0, 1, 2) into g_main_80134CF4_SongTrees, using
        f_init_80168190_LoadSongTree. */
-    f_main_80026C8C_LoadResource((s8 *) path, 0, &result);
-    sbnkPtr = *(void **) result;
+    f_main_80026C8C_LoadResource((s8 *) path, 0, (void **) &result);
+    sbnkPtr = *result;
     g_main_8011F904_SbnkTable =
-        (u8 *) sbnkPtr + (*(s32 *) sbnkPtr << 2);
+        (u8 *) sbnkPtr + (sbnkPtr->unk00 << 2);
     f_init_80168190_LoadSongTree(3, (const s8 *) "MUSIC", 0, result);
     f_init_80168190_LoadSongTree(0, (const s8 *) "AM", 0, result);
     f_init_80168190_LoadSongTree(1, (const s8 *) "PL", 0, result);

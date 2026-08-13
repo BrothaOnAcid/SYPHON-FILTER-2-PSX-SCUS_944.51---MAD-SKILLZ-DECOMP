@@ -7,21 +7,21 @@
    main's 0x8011EC64 - see f_main_800FC814_DestroyMmid.c.
 
    Extremely intricate: walks the same linked list f_main_800FC6A8_FindById searches
-   (list head g_main_8012F408_unk, chained via +0x14), and for each node
+   (list head g_main_8012F408_SongTreeListHead, chained via +0x14), and for each node
    "compiles" up to *(+0x18) (s16 count) raw 0x24-byte event records at
    *(+0x20) against two lookup tables. Transcribed for control-flow
    accuracy from raw asm; field offsets are left as raw byte arithmetic
    (not a named struct) since their exact meaning is not understood beyond
    the layout observed here. */
 
-extern SongTree *g_main_8012F408_unk;   /* list head, same one f_main_800FC6A8_FindById walks */
+extern SongTree *g_main_8012F408_SongTreeListHead;   /* list head, same one f_main_800FC6A8_FindById walks */
 
 extern SongTree *f_main_800FC6A8_FindById(s32 id);   /* lookup table A = SongTree, matched by node->tag */
 extern void *func_800FC6E8(s32 id);   /* lookup table B, matched by node field +0x10 (byte) */
 extern s32 func_800FC910(s32 arg0);   /* guess: per-event finalizer */
 
 void f_main_800FC3F0_CompileEventLists(void) {
-    u8 *outer = (u8 *) g_main_8012F408_unk;
+    u8 *outer = (u8 *) g_main_8012F408_SongTreeListHead;
 
     while (outer != 0) {
         s16 count = *(s16 *) (outer + 0x18);
