@@ -996,7 +996,15 @@ typedef struct {
     u8 unk68[0x8];   /* +0x68: passed by-ref to func_800F4200 */
     u8 _pad70[0x9C - 0x70];
     void *unk9C;     /* +0x9C: -> word tested for 0 */
-    u8 _pad11A0[0x13D - 0xA0];
+    u8 _padA0[0xF8 - 0xA0];
+    void *unkF8;     /* +0xF8: set to `other` in f_main_80015C8C_LinkListener */
+    s32 unkFC;       /* +0xFC: copy of other->unk18 */
+    u8 _pad100[0x104 - 0x100];
+    s32 unk104;      /* +0x104: cleared by f_main_80015C8C_LinkListener */
+    u8 _pad108[0x134 - 0x108];
+    s32 unk134;      /* +0x134: set to 1 by f_main_80015C8C_LinkListener */
+    void *unk138;    /* +0x138: self-linked to &self->unkF8 by f_main_80015C8C_LinkListener */
+    u8 _pad13C[0x13D - 0x13C];
     u8 slots[0x1A4 - 0x13D]; /* +0x13D: per-slot bytes, count = g_main_8011F660_SlotCount */
     void *sub1A4;    /* +0x1A4: -> +0x10 -> +0x28 flags (0x20000) */
 } SoundListener;

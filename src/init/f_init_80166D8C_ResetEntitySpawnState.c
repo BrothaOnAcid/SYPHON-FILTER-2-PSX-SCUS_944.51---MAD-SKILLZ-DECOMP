@@ -19,12 +19,12 @@ extern s16 D_8011ED0E;   /* not yet decompiled */
 extern u8 D_80121260[];  /* not yet decompiled: array of 12 elements, stride 0xC, only field +0 is cleared here */
 
 extern void func_800197A8(void); /* not yet decompiled */
-extern void func_80016D7C(void); /* not yet decompiled */
+extern void f_main_80016D7C_ClearSlotTable(void);
 
 /* guess: resets the entity-spawn subsystem's globals to their empty state
    (spawn priority threshold, several counters/flags, a 12-entry table at
    D_80121260 with stride 0xC), then runs two more subsystem resets via
-   func_800197A8/func_80016D7C. Splat merged this with the following
+   func_800197A8/f_main_80016D7C_ClearSlotTable. Splat merged this with the following
    function into one nonmatching block (like the documented boundary bug
    at 0x80168298); the real prologue for the next function starts right
    after this one's epilogue, at 0x80166E54. */
@@ -54,5 +54,5 @@ void f_init_80166D8C_ResetEntitySpawnState(void) {
     D_8011ED0E = -1;
 
     func_800197A8();
-    func_80016D7C();
+    f_main_80016D7C_ClearSlotTable();
 }

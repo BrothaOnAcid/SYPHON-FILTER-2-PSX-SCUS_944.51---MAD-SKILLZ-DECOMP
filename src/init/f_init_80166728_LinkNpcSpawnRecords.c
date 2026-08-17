@@ -2,7 +2,7 @@
 
 extern void *f_main_80025AD0_AllocDown(s32 size);
 extern void func_80024094(void *idOut, s32 arg1); /* not yet decompiled: allocates/resolves an id into *idOut */
-extern void func_80024D0C(s32 id, MATRIX *mtx);    /* not yet decompiled, guessed sig: sets id's transform */
+extern void f_main_80024D0C_SetIdTransform(s32 id, MATRIX *mtx);
 extern void func_801666F4(s32 id, void *parent);   /* not yet decompiled, guessed sig: links id under parent */
 
 extern AmmoUser *g_main_8012A574_Player;
@@ -58,7 +58,7 @@ typedef struct {
    n == 0, otherwise once per instance (n times), allocating a fresh id
    array (and, in instanced mode, an id-count array) each time. Per record:
    builds a MATRIX from the record's rotation/position and resolves+stores
-   an id for it via func_80024094/func_80024D0C, then in a second pass
+   an id for it via func_80024094/f_main_80024D0C_SetIdTransform, then in a second pass
    links each record's id under its resolved parent via func_801666F4. */
 void f_init_80166728_LinkNpcSpawnRecords(SpawnDef *def, SpawnCtx *ctx, s32 n) {
     void *hdr = f_main_80025AD0_AllocDown(8);
@@ -113,7 +113,7 @@ void f_init_80166728_LinkNpcSpawnRecords(SpawnDef *def, SpawnCtx *ctx, s32 n) {
 
                 func_80024094(idp, 0);
                 rec->unk3C = *idp;
-                func_80024D0C(*idp, &mtx);
+                f_main_80024D0C_SetIdTransform(*idp, &mtx);
 
                 idp++;
                 rec = (SpawnRecord *) ((u8 *) rec + rec->unk0);

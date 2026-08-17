@@ -3,7 +3,7 @@
 extern void *f_main_80025AD0_AllocDown(s32 size);
 extern void func_800128A4(s32 group, void *widget);              /* not yet decompiled: register widget (type A) */
 extern void func_800128D8(s32 group, void *widget);              /* not yet decompiled: register widget (type B) */
-extern void func_800129A0(void *widget, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6); /* not yet decompiled */
+extern void f_main_800129A0_InitWidget(void *widget, s32 style, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6);
 extern void func_80012BF8(void *widget, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8); /* not yet decompiled */
 extern void func_80012C80(void *widget, s32 a1, s32 a2, s32 a3);  /* not yet decompiled */
 extern void func_800A5AFC(void *widget, s32 arg1);                /* not yet decompiled */
@@ -20,7 +20,8 @@ extern void *D_80158C68;   /* not yet decompiled: font/style table (only used by
 
 /* Heavily unconfirmed menu/HUD widget setup: allocates a 0x3C4-byte block
    (stored at D_80114A74) and builds four groups of fixed-layout widgets
-   inside it via func_800129A0 (6x, stride 0x24)/func_80012BF8 (4x, stride
+   inside it via f_main_800129A0_InitWidget (6x, stride 0x24, sets a1 as the
+   "style" field OR'd with 0x30000000)/func_80012BF8 (4x, stride
    0x2C)/func_80012C80 (2x, stride 0x18, then 12x, stride 0x18), each
    registered via func_800128A4 and tagged (widget->unk4 = 1 or 2). Then
    sets up a couple of text/label handles (unk2D8/unk2DC) via
@@ -44,7 +45,7 @@ void f_init_801651E8_BuildMenuWidgets(void) {
     off = 0x150;
     for (i = 0; i < 6; i++) {
         w = base + off;
-        func_800129A0(w, 0, 0x04000400, 0x04000400, 0x04000400, 0x503028, 0x503028);
+        f_main_800129A0_InitWidget(w, 0, 0x04000400, 0x04000400, 0x04000400, 0x503028, 0x503028);
         off += 0x24;
         func_800128A4(D_8011F9C4, w);
         *(s32 *) ((u8 *) w + 4) = 1;

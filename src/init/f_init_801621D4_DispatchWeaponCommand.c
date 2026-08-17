@@ -11,9 +11,9 @@ extern void func_8015E730(ObjRecord *arg0);   /* not yet decompiled */
 void f_init_8015EF1C_LinkChainedWeapon(ObjRecord *arg0);
 void f_init_8015F314_ResolveObjChain(ObjRecord *arg0);
 extern void func_8015F6EC(ObjRecord *arg0);   /* not yet decompiled */
-extern void func_80160060(ObjRecord *arg0);   /* not yet decompiled */
+extern void f_init_80160060_ClearAndNotify(ObjRecord *arg0);
 extern void func_80161254(void);               /* not yet decompiled */
-extern void func_801619A0(ObjRecord *arg0);   /* not yet decompiled */
+extern void f_init_801619A0_SyncHolderIfSlotBusy(ObjRecord *arg0);
 extern void f_init_80161EF8_SyncWeaponChain(ObjRecord *arg0);
 
 /* The master per-command weapon dispatcher for the whole chain family:
@@ -27,7 +27,7 @@ extern void f_init_80161EF8_SyncWeaponChain(ObjRecord *arg0);
    doesn't match one of the explicit cases (including cmd == 0x56 or 0x5A,
    which instead just reset unk4 to -1 directly). Independently of the first
    dispatch, cmd 0x63/0x39 also runs f_init_801604E0_SyncChainedWeapon,
-   cmd 0x2D/0x6A also runs func_80160060, and mode 0xC also runs
+   cmd 0x2D/0x6A also runs f_init_80160060_ClearAndNotify, and mode 0xC also runs
    func_8015F6EC - these three are unconditional follow-ups, not part of
    the else-if chain. */
 void f_init_801621D4_DispatchWeaponCommand(ObjRecord *arg0, s32 cmd) {
@@ -50,7 +50,7 @@ void f_init_801621D4_DispatchWeaponCommand(ObjRecord *arg0, s32 cmd) {
     } else if (cmd == 0x40) {
         f_init_801609B8_PropagateChainState(arg0);
     } else if (cmd == 0x55) {
-        func_801619A0(arg0);
+        f_init_801619A0_SyncHolderIfSlotBusy(arg0);
     } else if (mode == 0xD || mode == 0x12) {
         if (cmd == 0x56 || cmd == 0x5A) {
             arg0->unk4 = (u32) -1;
@@ -68,7 +68,7 @@ void f_init_801621D4_DispatchWeaponCommand(ObjRecord *arg0, s32 cmd) {
         return;
     }
     if (cmd == 0x2D || cmd == 0x6A) {
-        func_80160060(arg0);
+        f_init_80160060_ClearAndNotify(arg0);
         return;
     }
     if (arg0->mode == 0xC) {
